@@ -8,6 +8,9 @@ A robust, scalable webhook verification framework supporting multiple platforms 
 
 Tern is a zero-dependency TypeScript framework for robust webhook verification across multiple platforms and algorithms.
 
+<img width="1396" height="470" style="border-radius: 10px" alt="tern bird nature" src="https://github.com/user-attachments/assets/5f0da3e6-1aba-4f88-a9d7-9d8698845c39" />
+
+
 ## Features
 
 - **Algorithm-first architecture**: Decouples platform logic from signature verification — verify based on cryptographic algorithm, not hardcoded platform rules.
