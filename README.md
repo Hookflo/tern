@@ -2,27 +2,52 @@
 
 A robust, scalable webhook verification framework supporting multiple platforms and signature algorithms. Built with TypeScript for maximum type safety and developer experience.
 
+[![npm version](https://img.shields.io/npm/v/@hookflo/tern)](https://www.npmjs.com/package/@hookflo/tern)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](https://www.typescriptlang.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Tern is a zero-dependency TypeScript framework for robust webhook verification across multiple platforms and algorithms.
+
 ## Features
 
-- **Algorithm-based verification**: Instead of platform-specific verifiers, use algorithm-based verifiers
+- **Algorithm-first architecture**: Decouples platform logic from signature verification — verify based on cryptographic algorithm, not hardcoded platform rules.
 - **Platform configuration**: Each platform specifies which algorithm to use
 - **Extensible framework**: Easy to add new algorithms and platforms
-- **Most common algorithms**: HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, and custom algorithms
+- **Supported algorithms**:
+  - `hmac-sha256` – e.g., GitHub, Stripe, Shopify
+  - `hmac-sha1` – legacy GitHub support
+  - `hmac-sha512` – custom implementations
+  - `token-based` – simple token matching
+  - `custom` – fully user-defined logic
 - **TypeScript support**: Full type safety and IntelliSense
 - **Zero dependencies**: Only uses Node.js built-in modules
+
+## Why Tern?
+
+Most webhook verifiers are tightly coupled to specific platforms or hardcoded logic. Tern introduces a flexible, scalable, algorithm-first approach that:
+
+- Works across all major platforms
+- Supports custom signing logic
+- Keeps your code clean and modular
+- Avoids unnecessary dependencies
+- Is written in strict, modern TypeScript
 
 ## Installation
 
 ```bash
-npm install tern
+npm install @hookflo/tern
+# or
+yarn add @hookflo/tern
+# or
+pnpm add @hookflo/tern
 ```
 
 ## Quick Start
 
 ### Basic Usage
 
-```typescript
-import { WebhookVerificationService } from 'tern';
+```ts
+import { WebhookVerificationService } from '@hookflo/tern';
 
 // Verify a GitHub webhook
 const result = await WebhookVerificationService.verifyWithPlatformConfig(
@@ -41,7 +66,7 @@ if (result.isValid) {
 
 ### Token-based Authentication (Supabase, Custom)
 
-```typescript
+```ts
 // For platforms that use simple token-based auth
 const result = await WebhookVerificationService.verifyTokenBased(
   request,
@@ -52,8 +77,8 @@ const result = await WebhookVerificationService.verifyTokenBased(
 
 ### Custom Signature Configuration
 
-```typescript
-import { WebhookVerificationService } from 'tern';
+```ts
+import { WebhookVerificationService } from '@hookflo/tern';
 
 const config = {
   platform: 'custom',
@@ -70,23 +95,36 @@ const config = {
 const result = await WebhookVerificationService.verify(request, config);
 ```
 
-## 🏗️ Supported Platforms
+## Header Format Options
+
+| Format             | Description                                                  |
+|--------------------|--------------------------------------------------------------|
+| `prefixed`         | Signature starts with a prefix (e.g., `sha256=...`)          |
+| `raw`              | Raw digest value in the header                               |
+| `base64`           | Base64-encoded HMAC or digest                                |
+| `comma-separated`  | Header contains comma-delimited key-value pairs              |
+
+## Supported Platforms
 
 ### HMAC-SHA256 (Most Common)
-- **GitHub**: `x-hub-signature-256` with `sha256=` prefix
-- **Stripe**: `stripe-signature` with comma-separated format
-- **Clerk**: `svix-signature` with base64 encoding
-- **Dodo Payments**: `webhook-signature` with raw format
-- **Shopify**: `x-shopify-hmac-sha256`
-- **Vercel**: `x-vercel-signature`
-- **Polar**: `x-polar-signature`
+
+| Platform  | Header                     | Format           |
+|-----------|----------------------------|------------------|
+| GitHub    | `x-hub-signature-256`      | `sha256=...`     |
+| Stripe    | `stripe-signature`         | Comma-separated  |
+| Shopify   | `x-shopify-hmac-sha256`    | Raw              |
+| Vercel    | `x-vercel-signature`       | Raw              |
+| Polar     | `x-polar-signature`        | Raw              |
 
 ### Custom Algorithms
-- **Supabase**: Token-based authentication
-- **Clerk**: Custom base64 encoding
-- **Stripe**: Custom comma-separated format
 
-## 🔧 API Reference
+| Platform  | Method         | Notes                        |
+|-----------|----------------|------------------------------|
+| Supabase  | Token-based    | Header: `x-webhook-token`    |
+| Clerk     | Base64         | Header: `svix-signature`     |
+| Stripe    | Custom         | Comma-separated with `t=...` |
+
+## API Reference
 
 ### WebhookVerificationService
 
@@ -94,7 +132,7 @@ const result = await WebhookVerificationService.verify(request, config);
 
 Verify a webhook using a configuration object.
 
-```typescript
+```ts
 const config = {
   platform: 'github',
   secret: 'your-secret',
@@ -108,7 +146,7 @@ const result = await WebhookVerificationService.verify(request, config);
 
 Verify a webhook using platform-specific configuration.
 
-```typescript
+```ts
 const result = await WebhookVerificationService.verifyWithPlatformConfig(
   request,
   'stripe',
@@ -121,7 +159,7 @@ const result = await WebhookVerificationService.verifyWithPlatformConfig(
 
 Verify a webhook using simple token-based authentication.
 
-```typescript
+```ts
 const result = await WebhookVerificationService.verifyTokenBased(
   request,
   'your-webhook-id',
@@ -135,8 +173,8 @@ const result = await WebhookVerificationService.verifyTokenBased(
 
 Automatically detect the platform from request headers.
 
-```typescript
-import { detectPlatformFromHeaders } from 'tern';
+```ts
+import { detectPlatformFromHeaders } from '@hookflo/tern';
 
 const platform = detectPlatformFromHeaders(request.headers);
 if (platform) {
@@ -150,20 +188,20 @@ if (platform) {
 
 Get all platforms that use a specific algorithm.
 
-```typescript
-import { WebhookVerificationService } from 'tern';
+```ts
+import { WebhookVerificationService } from '@hookflo/tern';
 
 const hmacPlatforms = WebhookVerificationService.getPlatformsUsingAlgorithm('hmac-sha256');
 // Returns: ['github', 'stripe', 'clerk', 'dodopayments', ...]
 ```
 
-## 🎯 Usage Examples
+## Usage Examples
 
 ### Express.js Integration
 
 ```typescript
 import express from 'express';
-import { WebhookVerificationService } from 'tern';
+import { WebhookVerificationService } from '@hookflo/tern';
 
 const app = express();
 
@@ -225,7 +263,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 ### Platform Detection
 
 ```typescript
-import { detectPlatformFromHeaders, WebhookVerificationService } from 'tern';
+import { detectPlatformFromHeaders, WebhookVerificationService } from '@hookflo/tern';
 
 async function handleWebhook(request: Request) {
   const platform = detectPlatformFromHeaders(request.headers);
@@ -271,7 +309,7 @@ const result = await WebhookVerificationService.verify(request, customConfig);
 
 ```typescript
 // In your project, extend the types
-declare module 'tern' {
+declare module '@hookflo/tern' {
   interface WebhookPlatform {
     'your-platform': 'your-platform';
   }
@@ -329,7 +367,7 @@ try {
 }
 ```
 
-## 🧪 Testing
+## Testing
 
 ```typescript
 import { WebhookVerificationService } from 'tern';
@@ -354,21 +392,21 @@ const result = await WebhookVerificationService.verifyWithPlatformConfig(
 console.log('Test result:', result);
 ```
 
-## 📈 Performance
+## Performance
 
 - **Zero dependencies**: Only uses Node.js built-in modules
 - **Optimized algorithms**: Efficient HMAC verification
 - **Timing-safe comparisons**: Prevents timing attacks
 - **Minimal overhead**: Lightweight and fast
 
-## 🔒 Security Features
+## Security Features
 
 - **Timing-safe comparisons**: Prevents timing attacks
 - **Proper validation**: Comprehensive input validation
 - **Secure defaults**: Secure by default configuration
 - **Algorithm flexibility**: Support for multiple signature algorithms
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -376,21 +414,11 @@ console.log('Test result:', result);
 4. Add tests
 5. Submit a pull request
 
-## 📄 License
+## License
 
 MIT License - see LICENSE file for details.
 
-## 🆘 Support
+## Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/tern/issues)
-- **Documentation**: [GitHub Wiki](https://github.com/yourusername/tern/wiki)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/tern/discussions)
-
-## 🚀 Roadmap
-
-- [ ] RSA-SHA256 support
-- [ ] Ed25519 support
-- [ ] Performance optimizations
-- [ ] More platform integrations
-- [ ] Built-in rate limiting
-- [ ] Monitoring and metrics 
+- **Issues**: [GitHub Issues](https://github.com/Hookflo/tern/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Hookflo/tern/discussions)
