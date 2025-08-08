@@ -1,11 +1,15 @@
-import { WebhookVerifier } from './base';
-import { WebhookVerificationResult, SignatureConfig } from '../types';
-import { createHmac } from 'crypto';
+import { createHmac } from "crypto";
+import { WebhookVerifier } from "./base";
+import { WebhookVerificationResult, SignatureConfig } from "../types";
 
 export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   protected config: SignatureConfig;
 
-  constructor(secret: string, config: SignatureConfig, toleranceInSeconds: number = 300) {
+  constructor(
+    secret: string,
+    config: SignatureConfig,
+    toleranceInSeconds: number = 300,
+  ) {
     super(secret, toleranceInSeconds);
     this.config = config;
   }
@@ -17,22 +21,22 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     if (!headerValue) return null;
 
     switch (this.config.headerFormat) {
-      case 'prefixed':
-        return headerValue.startsWith(this.config.prefix || '') 
-          ? headerValue.substring((this.config.prefix || '').length)
+      case "prefixed":
+        return headerValue.startsWith(this.config.prefix || "")
+          ? headerValue.substring((this.config.prefix || "").length)
           : null;
-      case 'comma-separated':
+      case "comma-separated":
         // Handle comma-separated format like Stripe: "t=1234567890,v1=abc123"
-        const parts = headerValue.split(',');
+        const parts = headerValue.split(",");
         const sigMap: Record<string, string> = {};
         for (const part of parts) {
-          const [key, value] = part.split('=');
+          const [key, value] = part.split("=");
           if (key && value) {
             sigMap[key] = value;
           }
         }
-        return sigMap['v1'] || sigMap['signature'] || null;
-      case 'raw':
+        return sigMap.v1 || sigMap.signature || null;
+      case "raw":
       default:
         return headerValue;
     }
@@ -45,11 +49,11 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     if (!timestampHeader) return null;
 
     switch (this.config.timestampFormat) {
-      case 'unix':
+      case "unix":
         return parseInt(timestampHeader, 10);
-      case 'iso':
+      case "iso":
         return Math.floor(new Date(timestampHeader).getTime() / 1000);
-      case 'custom':
+      case "custom":
         // Custom timestamp parsing logic can be added here
         return parseInt(timestampHeader, 10);
       default:
@@ -57,32 +61,42 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     }
   }
 
-  protected formatPayload(rawBody: string, timestamp?: number): string {
+  protected formatPayload(rawBody: string, timestamp?: number | null): string {
     switch (this.config.payloadFormat) {
-      case 'timestamped':
+      case "timestamped":
         return timestamp ? `${timestamp}.${rawBody}` : rawBody;
-      case 'custom':
+      case "custom":
         // Custom payload formatting logic can be added here
         return rawBody;
-      case 'raw':
+      case "raw":
       default:
         return rawBody;
     }
   }
 
-  protected verifyHMAC(payload: string, signature: string, algorithm: string = 'sha256'): boolean {
+  protected verifyHMAC(
+    payload: string,
+    signature: string,
+    algorithm: string = "sha256",
+  ): boolean {
     const hmac = createHmac(algorithm, this.secret);
     hmac.update(payload);
-    const expectedSignature = hmac.digest('hex');
-    
+    const expectedSignature = hmac.digest("hex");
+
     return this.safeCompare(signature, expectedSignature);
   }
 
-  protected verifyHMACWithPrefix(payload: string, signature: string, algorithm: string = 'sha256'): boolean {
+  protected verifyHMACWithPrefix(
+    payload: string,
+    signature: string,
+    algorithm: string = "sha256",
+  ): boolean {
     const hmac = createHmac(algorithm, this.secret);
     hmac.update(payload);
-    const expectedSignature = `${this.config.prefix || ''}${hmac.digest('hex')}`;
-    
+    const expectedSignature = `${this.config.prefix || ""}${hmac.digest(
+      "hex",
+    )}`;
+
     return this.safeCompare(signature, expectedSignature);
   }
 }
@@ -95,31 +109,31 @@ export class HMACSHA256Verifier extends AlgorithmBasedVerifier {
         return {
           isValid: false,
           error: `Missing signature header: ${this.config.headerName}`,
-          platform: 'unknown' as any,
+          platform: "unknown" as any,
         };
       }
 
       const rawBody = await request.text();
       const timestamp = this.extractTimestamp(request);
-      
+
       if (timestamp && !this.isTimestampValid(timestamp)) {
         return {
           isValid: false,
-          error: 'Webhook timestamp expired',
-          platform: 'unknown' as any,
+          error: "Webhook timestamp expired",
+          platform: "unknown" as any,
         };
       }
 
       const payload = this.formatPayload(rawBody, timestamp);
-      const isValid = this.config.prefix 
-        ? this.verifyHMACWithPrefix(payload, signature, 'sha256')
-        : this.verifyHMAC(payload, signature, 'sha256');
+      const isValid = this.config.prefix
+        ? this.verifyHMACWithPrefix(payload, signature, "sha256")
+        : this.verifyHMAC(payload, signature, "sha256");
 
       if (!isValid) {
         return {
           isValid: false,
-          error: 'Invalid signature',
-          platform: 'unknown' as any,
+          error: "Invalid signature",
+          platform: "unknown" as any,
         };
       }
 
@@ -133,18 +147,18 @@ export class HMACSHA256Verifier extends AlgorithmBasedVerifier {
 
       return {
         isValid: true,
-        platform: 'unknown' as any,
+        platform: "unknown" as any,
         payload: parsedPayload,
         metadata: {
           timestamp: timestamp?.toString(),
-          algorithm: 'hmac-sha256',
+          algorithm: "hmac-sha256",
         },
       };
     } catch (error) {
       return {
         isValid: false,
         error: `HMAC-SHA256 verification error: ${(error as Error).message}`,
-        platform: 'unknown' as any,
+        platform: "unknown" as any,
       };
     }
   }
@@ -158,31 +172,31 @@ export class HMACSHA1Verifier extends AlgorithmBasedVerifier {
         return {
           isValid: false,
           error: `Missing signature header: ${this.config.headerName}`,
-          platform: 'unknown' as any,
+          platform: "unknown" as any,
         };
       }
 
       const rawBody = await request.text();
       const timestamp = this.extractTimestamp(request);
-      
+
       if (timestamp && !this.isTimestampValid(timestamp)) {
         return {
           isValid: false,
-          error: 'Webhook timestamp expired',
-          platform: 'unknown' as any,
+          error: "Webhook timestamp expired",
+          platform: "unknown" as any,
         };
       }
 
       const payload = this.formatPayload(rawBody, timestamp);
-      const isValid = this.config.prefix 
-        ? this.verifyHMACWithPrefix(payload, signature, 'sha1')
-        : this.verifyHMAC(payload, signature, 'sha1');
+      const isValid = this.config.prefix
+        ? this.verifyHMACWithPrefix(payload, signature, "sha1")
+        : this.verifyHMAC(payload, signature, "sha1");
 
       if (!isValid) {
         return {
           isValid: false,
-          error: 'Invalid signature',
-          platform: 'unknown' as any,
+          error: "Invalid signature",
+          platform: "unknown" as any,
         };
       }
 
@@ -195,18 +209,18 @@ export class HMACSHA1Verifier extends AlgorithmBasedVerifier {
 
       return {
         isValid: true,
-        platform: 'unknown' as any,
+        platform: "unknown" as any,
         payload: parsedPayload,
         metadata: {
           timestamp: timestamp?.toString(),
-          algorithm: 'hmac-sha1',
+          algorithm: "hmac-sha1",
         },
       };
     } catch (error) {
       return {
         isValid: false,
         error: `HMAC-SHA1 verification error: ${(error as Error).message}`,
-        platform: 'unknown' as any,
+        platform: "unknown" as any,
       };
     }
   }
@@ -220,31 +234,31 @@ export class HMACSHA512Verifier extends AlgorithmBasedVerifier {
         return {
           isValid: false,
           error: `Missing signature header: ${this.config.headerName}`,
-          platform: 'unknown' as any,
+          platform: "unknown" as any,
         };
       }
 
       const rawBody = await request.text();
       const timestamp = this.extractTimestamp(request);
-      
+
       if (timestamp && !this.isTimestampValid(timestamp)) {
         return {
           isValid: false,
-          error: 'Webhook timestamp expired',
-          platform: 'unknown' as any,
+          error: "Webhook timestamp expired",
+          platform: "unknown" as any,
         };
       }
 
       const payload = this.formatPayload(rawBody, timestamp);
-      const isValid = this.config.prefix 
-        ? this.verifyHMACWithPrefix(payload, signature, 'sha512')
-        : this.verifyHMAC(payload, signature, 'sha512');
+      const isValid = this.config.prefix
+        ? this.verifyHMACWithPrefix(payload, signature, "sha512")
+        : this.verifyHMAC(payload, signature, "sha512");
 
       if (!isValid) {
         return {
           isValid: false,
-          error: 'Invalid signature',
-          platform: 'unknown' as any,
+          error: "Invalid signature",
+          platform: "unknown" as any,
         };
       }
 
@@ -257,18 +271,18 @@ export class HMACSHA512Verifier extends AlgorithmBasedVerifier {
 
       return {
         isValid: true,
-        platform: 'unknown' as any,
+        platform: "unknown" as any,
         payload: parsedPayload,
         metadata: {
           timestamp: timestamp?.toString(),
-          algorithm: 'hmac-sha512',
+          algorithm: "hmac-sha512",
         },
       };
     } catch (error) {
       return {
         isValid: false,
         error: `HMAC-SHA512 verification error: ${(error as Error).message}`,
-        platform: 'unknown' as any,
+        platform: "unknown" as any,
       };
     }
   }
@@ -276,23 +290,23 @@ export class HMACSHA512Verifier extends AlgorithmBasedVerifier {
 
 // Factory function to create verifiers based on algorithm
 export function createAlgorithmVerifier(
-  secret: string, 
-  config: SignatureConfig, 
-  toleranceInSeconds: number = 300
+  secret: string,
+  config: SignatureConfig,
+  toleranceInSeconds: number = 300,
 ): AlgorithmBasedVerifier {
   switch (config.algorithm) {
-    case 'hmac-sha256':
+    case "hmac-sha256":
       return new HMACSHA256Verifier(secret, config, toleranceInSeconds);
-    case 'hmac-sha1':
+    case "hmac-sha1":
       return new HMACSHA1Verifier(secret, config, toleranceInSeconds);
-    case 'hmac-sha512':
+    case "hmac-sha512":
       return new HMACSHA512Verifier(secret, config, toleranceInSeconds);
-    case 'rsa-sha256':
-    case 'ed25519':
-    case 'custom':
+    case "rsa-sha256":
+    case "ed25519":
+    case "custom":
       // These can be implemented as needed
       throw new Error(`Algorithm ${config.algorithm} not yet implemented`);
     default:
       throw new Error(`Unknown algorithm: ${config.algorithm}`);
   }
-} 
+}

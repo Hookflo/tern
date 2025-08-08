@@ -1,3 +1,4 @@
+import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { WebhookVerificationService } from './index';
 import { WebhookConfig, SignatureConfig } from './types';
 
@@ -7,7 +8,7 @@ export async function exampleBasicUsage(request: Request) {
     request,
     'github',
     'your-github-secret',
-    300
+    300,
   );
   return result;
 }
@@ -17,7 +18,7 @@ export async function exampleTokenBased(request: Request) {
   const result = await WebhookVerificationService.verifyTokenBased(
     request,
     'your-webhook-id',
-    'your-webhook-token'
+    'your-webhook-token',
   );
   return result;
 }
@@ -29,13 +30,13 @@ export async function exampleCustomSignature(request: Request) {
     headerName: 'x-custom-signature',
     headerFormat: 'prefixed',
     prefix: 'sha256=',
-    payloadFormat: 'raw'
+    payloadFormat: 'raw',
   };
 
   const config: WebhookConfig = {
     platform: 'custom',
     secret: 'your-custom-secret',
-    signatureConfig
+    signatureConfig,
   };
 
   const result = await WebhookVerificationService.verify(request, config);
@@ -45,18 +46,18 @@ export async function exampleCustomSignature(request: Request) {
 // Example 4: Platform detection
 export async function examplePlatformDetection(request: Request) {
   const { detectPlatformFromHeaders } = require('./utils');
-  
+
   const platform = detectPlatformFromHeaders(request.headers);
   if (platform) {
     const result = await WebhookVerificationService.verifyWithPlatformConfig(
       request,
       platform,
       'your-secret',
-      300
+      300,
     );
     return result;
   }
-  
+
   throw new Error('Unknown platform');
 }
 
@@ -67,7 +68,7 @@ export async function exampleErrorHandling(request: Request) {
       request,
       'github',
       'your-secret',
-      300
+      300,
     );
 
     if (!result.isValid) {
@@ -78,7 +79,7 @@ export async function exampleErrorHandling(request: Request) {
     return { success: true, payload: result.payload };
   } catch (error) {
     console.error('Verification error:', error);
-    return { success: false, error: error.message };
+    return { success: false, error: (error as Error).message };
   }
 }
 
@@ -93,11 +94,11 @@ export async function exampleBatchVerification(request: Request) {
         request,
         platform as any,
         'your-secret',
-        300
+        300,
       );
       results.push({ platform, success: true, result });
     } catch (error) {
-      results.push({ platform, success: false, error: error.message });
+      results.push({ platform, success: false, error: (error as Error).message });
     }
   }
 
@@ -109,15 +110,20 @@ export function exampleExpressIntegration() {
   const express = require('express');
   const app = express();
 
-  app.post('/webhook', async (req, res) => {
+  app.post('/webhook', async (req:ExpressRequest, res:ExpressResponse) => {
     try {
-      const result = await WebhookVerificationService.verifyWithPlatformConfig(
-        req,
-        'github',
-        process.env.GITHUB_WEBHOOK_SECRET,
-        300
-      );
+      const fetchRequest = new Request('http://localhost/webhook', {
+        method: req.method,
+        headers: req.headers as any, // headers need to be a plain object
+        body: JSON.stringify(req.body),
+      });
 
+      const result = await WebhookVerificationService.verifyWithPlatformConfig(
+        fetchRequest,
+        'github',
+        process.env.GITHUB_WEBHOOK_SECRET || '',
+        300,
+      );
       if (result.isValid) {
         console.log('Webhook received:', result.payload);
         res.status(200).json({ success: true });
@@ -143,8 +149,8 @@ export function exampleNextJsApiRoute() {
       const result = await WebhookVerificationService.verifyWithPlatformConfig(
         req,
         'stripe',
-        process.env.STRIPE_WEBHOOK_SECRET,
-        300
+        process.env.STRIPE_WEBHOOK_SECRET || '',
+        300,
       );
 
       if (result.isValid) {
@@ -168,8 +174,8 @@ export async function exampleCustomPlatform(request: Request) {
       algorithm: 'hmac-sha256',
       headerName: 'x-custom-signature',
       headerFormat: 'raw',
-      payloadFormat: 'raw'
-    }
+      payloadFormat: 'raw',
+    },
   };
 
   const result = await WebhookVerificationService.verify(request, customConfig);
@@ -179,7 +185,7 @@ export async function exampleCustomPlatform(request: Request) {
 // Example 10: Helper methods usage
 export function exampleHelperMethods() {
   const { WebhookVerificationService } = require('./index');
-  
+
   // Get all platforms using HMAC-SHA256
   const hmacPlatforms = WebhookVerificationService.getPlatformsUsingAlgorithm('hmac-sha256');
   console.log('Platforms using HMAC-SHA256:', hmacPlatforms);
@@ -192,8 +198,8 @@ export function exampleHelperMethods() {
   const config: SignatureConfig = {
     algorithm: 'hmac-sha256',
     headerName: 'x-signature',
-    payloadFormat: 'raw'
+    payloadFormat: 'raw',
   };
   const isValid = WebhookVerificationService.validateSignatureConfig(config);
   console.log('Config is valid:', isValid);
-} 
+}

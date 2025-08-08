@@ -63,7 +63,7 @@ export class WebhookVerificationService {
     request: Request,
     platform: WebhookPlatform,
     secret: string,
-    toleranceInSeconds: number = 300
+    toleranceInSeconds: number = 300,
   ): Promise<WebhookVerificationResult> {
     const platformConfig = getPlatformAlgorithmConfig(platform);
     const config: WebhookConfig = {
@@ -98,7 +98,7 @@ export class WebhookVerificationService {
   static async verifyTokenBased(
     request: Request,
     webhookId: string,
-    webhookToken: string
+    webhookToken: string,
   ): Promise<WebhookVerificationResult> {
     try {
       const idHeader = request.headers.get('x-webhook-id');
@@ -151,8 +151,10 @@ export class WebhookVerificationService {
 }
 
 export * from './types';
-export { getPlatformAlgorithmConfig, platformUsesAlgorithm, getPlatformsUsingAlgorithm, validateSignatureConfig } from './platforms/algorithms';
+export {
+  getPlatformAlgorithmConfig, platformUsesAlgorithm, getPlatformsUsingAlgorithm, validateSignatureConfig,
+} from './platforms/algorithms';
 export { createAlgorithmVerifier } from './verifiers/algorithms';
 export { createCustomVerifier } from './verifiers/custom-algorithms';
 
-export default WebhookVerificationService; 
+export default WebhookVerificationService;

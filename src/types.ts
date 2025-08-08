@@ -10,8 +10,21 @@ export type WebhookPlatform =
   | 'dodopayments'
   | 'unknown';
 
+export enum WebhookPlatformKeys {
+  GitHub = 'github',
+  Stripe = 'stripe',
+  Clerk = 'clerk',
+  DodoPayments = 'dodopayments',
+  Shopify = 'shopify',
+  Vercel = 'vercel',
+  Polar = 'polar',
+  Supabase = 'supabase',
+  Custom ='custom',
+  Unknown = 'unknown'
+}
+
 // Algorithm types for the scalable framework
-export type SignatureAlgorithm = 
+export type SignatureAlgorithm =
   | 'hmac-sha256'
   | 'hmac-sha1'
   | 'hmac-sha512'
@@ -37,7 +50,7 @@ export interface WebhookVerificationResult {
   payload?: any;
   metadata?: {
     timestamp?: string;
-    id?: string;
+    id?: string | null;
     [key: string]: any;
   };
 }
@@ -61,4 +74,4 @@ export interface PlatformAlgorithmConfig {
 export interface TokenAuthConfig {
   webhookId: string;
   webhookToken: string;
-} 
+}

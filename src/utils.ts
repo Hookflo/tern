@@ -1,4 +1,4 @@
-import { WebhookPlatform, SignatureConfig, PlatformAlgorithmConfig } from './types';
+import { WebhookPlatform, WebhookPlatformKeys, SignatureConfig } from './types';
 import { getPlatformAlgorithmConfig, validateSignatureConfig } from './platforms/algorithms';
 
 /**
@@ -64,15 +64,15 @@ export function isCustomAlgorithm(platform: WebhookPlatform): boolean {
  * Get algorithm statistics
  */
 export function getAlgorithmStats() {
-  const platforms = Object.values(WebhookPlatform);
+  const platforms = Object.values(WebhookPlatformKeys);
   const stats: Record<string, number> = {};
-  
+
   for (const platform of platforms) {
     const config = getPlatformAlgorithmConfig(platform);
-    const algorithm = config.signatureConfig.algorithm;
+    const { algorithm } = config.signatureConfig;
     stats[algorithm] = (stats[algorithm] || 0) + 1;
   }
-  
+
   return stats;
 }
 
@@ -81,7 +81,7 @@ export function getAlgorithmStats() {
  */
 export function getMostCommonAlgorithm(): string {
   const stats = getAlgorithmStats();
-  return Object.entries(stats).reduce((a, b) => stats[a[0]] > stats[b[0]] ? a : b)[0];
+  return Object.entries(stats).reduce((a, b) => (stats[a[0]] > stats[b[0]] ? a : b))[0];
 }
 
 /**
@@ -145,15 +145,15 @@ export function getPlatformSummary(): Array<{
   description: string;
   isCustom: boolean;
 }> {
-  const platforms = Object.values(WebhookPlatform);
-  
-  return platforms.map(platform => {
+  const platforms = Object.values(WebhookPlatformKeys);
+
+  return platforms.map((platform) => {
     const config = getPlatformAlgorithmConfig(platform);
     return {
       platform,
       algorithm: config.signatureConfig.algorithm,
       description: config.description || '',
-      isCustom: config.signatureConfig.algorithm === 'custom'
+      isCustom: config.signatureConfig.algorithm === 'custom',
     };
   });
 }
@@ -195,27 +195,39 @@ export function validatePlatformConfig(platform: WebhookPlatform): boolean {
  * Get all valid platforms
  */
 export function getValidPlatforms(): WebhookPlatform[] {
-  const platforms = Object.values(WebhookPlatform);
-  return platforms.filter(platform => validatePlatformConfig(platform));
+  const platforms = Object.values(WebhookPlatformKeys);
+  return platforms.filter((platform) => validatePlatformConfig(platform));
 }
 
 /**
  * Get platforms by algorithm type
  */
 export function getPlatformsByAlgorithmType(): Record<string, WebhookPlatform[]> {
-  const platforms = Object.values(WebhookPlatform);
+  const platforms = Object.values(WebhookPlatformKeys);
   const result: Record<string, WebhookPlatform[]> = {};
-  
+
   for (const platform of platforms) {
     const config = getPlatformAlgorithmConfig(platform);
-    const algorithm = config.signatureConfig.algorithm;
-    
+    const { algorithm } = config.signatureConfig;
+
     if (!result[algorithm]) {
       result[algorithm] = [];
     }
-    
+
     result[algorithm].push(platform);
   }
-  
+
   return result;
-} 
+}
+
+export function cleanHeaders(
+  headers: Record<string, string | undefined>,
+): Record<string, string> {
+  const cleaned: Record<string, string> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (value !== undefined) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}

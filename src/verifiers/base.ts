@@ -1,8 +1,9 @@
-import { WebhookVerificationResult } from '../types';
-import { timingSafeEqual } from 'crypto';
+import { timingSafeEqual } from "crypto";
+import { WebhookVerificationResult } from "../types";
 
 export abstract class WebhookVerifier {
   protected secret: string;
+
   protected toleranceInSeconds: number;
 
   constructor(secret: string, toleranceInSeconds: number = 300) {
@@ -27,4 +28,4 @@ export abstract class WebhookVerifier {
       new TextEncoder().encode(b),
     );
   }
-} 
+}
