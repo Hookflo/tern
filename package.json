@@ -1,0 +1,66 @@
+{
+  "name": "tern",
+  "version": "1.0.0",
+  "description": "A robust, scalable webhook verification framework supporting multiple platforms and signature algorithms",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "node dist/test.js",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts",
+    "prepare": "npm run build",
+    "publish": "npm publish",
+    "clean": "rm -rf dist",
+    "prebuild": "npm run clean"
+  },
+  "keywords": [
+    "Hookflo",
+    "webhook",
+    "verification",
+    "security",
+    "hmac",
+    "signature",
+    "github",
+    "stripe",
+    "clerk",
+    "supabase",
+    "typescript",
+    "node",
+    "express",
+    "nextjs"
+  ],
+  "author": "Prateek Jain",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/tern.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/tern/issues"
+  },
+  "homepage": "https://github.com/yourusername/tern#readme",
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "jest": "^29.5.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+} 

@@ -1,0 +1,221 @@
+import { WebhookPlatform, SignatureConfig, PlatformAlgorithmConfig } from './types';
+import { getPlatformAlgorithmConfig, validateSignatureConfig } from './platforms/algorithms';
+
+/**
+ * Utility functions for the scalable webhook verification framework
+ */
+
+/**
+ * Get the recommended algorithm for a platform
+ */
+export function getRecommendedAlgorithm(platform: WebhookPlatform): string {
+  const config = getPlatformAlgorithmConfig(platform);
+  return config.signatureConfig.algorithm;
+}
+
+/**
+ * Check if a platform supports a specific algorithm
+ */
+export function platformSupportsAlgorithm(platform: WebhookPlatform, algorithm: string): boolean {
+  const config = getPlatformAlgorithmConfig(platform);
+  return config.signatureConfig.algorithm === algorithm;
+}
+
+/**
+ * Get all platforms that support a specific algorithm
+ */
+export function getPlatformsByAlgorithm(algorithm: string): WebhookPlatform[] {
+  const { getPlatformsUsingAlgorithm } = require('./platforms/algorithms');
+  return getPlatformsUsingAlgorithm(algorithm);
+}
+
+/**
+ * Create a signature config for a platform
+ */
+export function createSignatureConfigForPlatform(platform: WebhookPlatform): SignatureConfig {
+  const config = getPlatformAlgorithmConfig(platform);
+  return config.signatureConfig;
+}
+
+/**
+ * Validate a signature config
+ */
+export function isValidSignatureConfig(config: SignatureConfig): boolean {
+  return validateSignatureConfig(config);
+}
+
+/**
+ * Get platform description
+ */
+export function getPlatformDescription(platform: WebhookPlatform): string {
+  const config = getPlatformAlgorithmConfig(platform);
+  return config.description || `Webhook verification for ${platform}`;
+}
+
+/**
+ * Check if a platform uses custom algorithm
+ */
+export function isCustomAlgorithm(platform: WebhookPlatform): boolean {
+  const config = getPlatformAlgorithmConfig(platform);
+  return config.signatureConfig.algorithm === 'custom';
+}
+
+/**
+ * Get algorithm statistics
+ */
+export function getAlgorithmStats() {
+  const platforms = Object.values(WebhookPlatform);
+  const stats: Record<string, number> = {};
+  
+  for (const platform of platforms) {
+    const config = getPlatformAlgorithmConfig(platform);
+    const algorithm = config.signatureConfig.algorithm;
+    stats[algorithm] = (stats[algorithm] || 0) + 1;
+  }
+  
+  return stats;
+}
+
+/**
+ * Get most common algorithm
+ */
+export function getMostCommonAlgorithm(): string {
+  const stats = getAlgorithmStats();
+  return Object.entries(stats).reduce((a, b) => stats[a[0]] > stats[b[0]] ? a : b)[0];
+}
+
+/**
+ * Check if a request matches a platform's signature pattern
+ */
+export function detectPlatformFromHeaders(headers: Headers): WebhookPlatform | null {
+  const headerMap = new Map<string, string>();
+  headers.forEach((value, key) => {
+    headerMap.set(key.toLowerCase(), value);
+  });
+
+  // GitHub
+  if (headerMap.has('x-hub-signature-256')) {
+    return 'github';
+  }
+
+  // Stripe
+  if (headerMap.has('stripe-signature')) {
+    return 'stripe';
+  }
+
+  // Clerk
+  if (headerMap.has('svix-signature')) {
+    return 'clerk';
+  }
+
+  // Dodo Payments
+  if (headerMap.has('webhook-signature')) {
+    return 'dodopayments';
+  }
+
+  // Shopify
+  if (headerMap.has('x-shopify-hmac-sha256')) {
+    return 'shopify';
+  }
+
+  // Vercel
+  if (headerMap.has('x-vercel-signature')) {
+    return 'vercel';
+  }
+
+  // Polar
+  if (headerMap.has('x-polar-signature')) {
+    return 'polar';
+  }
+
+  // Supabase
+  if (headerMap.has('x-webhook-token')) {
+    return 'supabase';
+  }
+
+  return null;
+}
+
+/**
+ * Get platform configuration summary
+ */
+export function getPlatformSummary(): Array<{
+  platform: WebhookPlatform;
+  algorithm: string;
+  description: string;
+  isCustom: boolean;
+}> {
+  const platforms = Object.values(WebhookPlatform);
+  
+  return platforms.map(platform => {
+    const config = getPlatformAlgorithmConfig(platform);
+    return {
+      platform,
+      algorithm: config.signatureConfig.algorithm,
+      description: config.description || '',
+      isCustom: config.signatureConfig.algorithm === 'custom'
+    };
+  });
+}
+
+/**
+ * Compare two signature configs
+ */
+export function compareSignatureConfigs(config1: SignatureConfig, config2: SignatureConfig): boolean {
+  return JSON.stringify(config1) === JSON.stringify(config2);
+}
+
+/**
+ * Clone a signature config
+ */
+export function cloneSignatureConfig(config: SignatureConfig): SignatureConfig {
+  return JSON.parse(JSON.stringify(config));
+}
+
+/**
+ * Merge signature configs (config2 overrides config1)
+ */
+export function mergeSignatureConfigs(config1: SignatureConfig, config2: Partial<SignatureConfig>): SignatureConfig {
+  return { ...config1, ...config2 };
+}
+
+/**
+ * Validate platform configuration
+ */
+export function validatePlatformConfig(platform: WebhookPlatform): boolean {
+  try {
+    const config = getPlatformAlgorithmConfig(platform);
+    return validateSignatureConfig(config.signatureConfig);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Get all valid platforms
+ */
+export function getValidPlatforms(): WebhookPlatform[] {
+  const platforms = Object.values(WebhookPlatform);
+  return platforms.filter(platform => validatePlatformConfig(platform));
+}
+
+/**
+ * Get platforms by algorithm type
+ */
+export function getPlatformsByAlgorithmType(): Record<string, WebhookPlatform[]> {
+  const platforms = Object.values(WebhookPlatform);
+  const result: Record<string, WebhookPlatform[]> = {};
+  
+  for (const platform of platforms) {
+    const config = getPlatformAlgorithmConfig(platform);
+    const algorithm = config.signatureConfig.algorithm;
+    
+    if (!result[algorithm]) {
+      result[algorithm] = [];
+    }
+    
+    result[algorithm].push(platform);
+  }
+  
+  return result;
+} 
