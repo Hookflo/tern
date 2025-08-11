@@ -1,5 +1,5 @@
-import { WebhookVerifier } from './base';
-import { WebhookVerificationResult, SignatureConfig } from '../types';
+import { WebhookVerifier } from "./base";
+import { WebhookVerificationResult, SignatureConfig } from "../types";
 
 // Token-based verifier for platforms like Supabase
 export class TokenBasedVerifier extends WebhookVerifier {
@@ -18,14 +18,14 @@ export class TokenBasedVerifier extends WebhookVerifier {
     try {
       const token = request.headers.get(this.config.headerName);
       const id = request.headers.get(
-        this.config.customConfig?.idHeader || 'x-webhook-id',
+        this.config.customConfig?.idHeader || "x-webhook-id",
       );
 
       if (!token) {
         return {
           isValid: false,
           error: `Missing token header: ${this.config.headerName}`,
-          platform: 'custom',
+          platform: "custom",
         };
       }
 
@@ -35,8 +35,8 @@ export class TokenBasedVerifier extends WebhookVerifier {
       if (!isValid) {
         return {
           isValid: false,
-          error: 'Invalid token',
-          platform: 'custom',
+          error: "Invalid token",
+          platform: "custom",
         };
       }
 
@@ -50,18 +50,18 @@ export class TokenBasedVerifier extends WebhookVerifier {
 
       return {
         isValid: true,
-        platform: 'custom',
+        platform: "custom",
         payload,
         metadata: {
           id,
-          algorithm: 'token-based',
+          algorithm: "token-based",
         },
       };
     } catch (error) {
       return {
         isValid: false,
         error: `Token-based verification error: ${(error as Error).message}`,
-        platform: 'custom',
+        platform: "custom",
       };
     }
   }
@@ -76,7 +76,7 @@ export function createCustomVerifier(
   const customType = config.customConfig?.type;
 
   switch (customType) {
-    case 'token-based':
+    case "token-based":
       return new TokenBasedVerifier(secret, config, toleranceInSeconds);
     default:
       // Fallback to token-based for unknown custom types
