@@ -4,12 +4,10 @@ import {
   SignatureConfig,
 } from "../types";
 
-// Platform to algorithm mapping configuration
 export const platformAlgorithmConfigs: Record<
   WebhookPlatform,
   PlatformAlgorithmConfig
 > = {
-  // GitHub uses HMAC-SHA256 with prefixed signature
   github: {
     platform: "github",
     signatureConfig: {
@@ -17,20 +15,19 @@ export const platformAlgorithmConfigs: Record<
       headerName: "x-hub-signature-256",
       headerFormat: "prefixed",
       prefix: "sha256=",
-      timestampHeader: undefined, // GitHub doesn't use timestamp validation
+      timestampHeader: undefined,
       payloadFormat: "raw",
     },
     description: "GitHub webhooks use HMAC-SHA256 with sha256= prefix",
   },
 
-  // Stripe uses HMAC-SHA256 with comma-separated format
   stripe: {
     platform: "stripe",
     signatureConfig: {
       algorithm: "hmac-sha256",
       headerName: "stripe-signature",
       headerFormat: "comma-separated",
-      timestampHeader: undefined, // Timestamp is embedded in signature
+      timestampHeader: undefined,
       payloadFormat: "timestamped",
       customConfig: {
         signatureFormat: "t={timestamp},v1={signature}",
@@ -39,7 +36,6 @@ export const platformAlgorithmConfigs: Record<
     description: "Stripe webhooks use HMAC-SHA256 with comma-separated format",
   },
 
-  // Clerk uses HMAC-SHA256 with custom base64 encoding
   clerk: {
     platform: "clerk",
     signatureConfig: {
@@ -59,7 +55,6 @@ export const platformAlgorithmConfigs: Record<
     description: "Clerk webhooks use HMAC-SHA256 with base64 encoding",
   },
 
-  // Dodo Payments uses HMAC-SHA256
   dodopayments: {
     platform: "dodopayments",
     signatureConfig: {
@@ -72,14 +67,12 @@ export const platformAlgorithmConfigs: Record<
       customConfig: {
         signatureFormat: "v1={signature}",
         payloadFormat: "{id}.{timestamp}.{body}",
-        encoding: "base64",
         idHeader: "webhook-id",
       },
     },
-    description: "Dodo Payments webhooks use HMAC-SHA256",
+    description: "Dodo Payments webhooks use HMAC-SHA256 with svix-style format (Standard Webhooks)",
   },
 
-  // Shopify uses HMAC-SHA256
   shopify: {
     platform: "shopify",
     signatureConfig: {
@@ -92,7 +85,6 @@ export const platformAlgorithmConfigs: Record<
     description: "Shopify webhooks use HMAC-SHA256",
   },
 
-  // Vercel uses HMAC-SHA256
   vercel: {
     platform: "vercel",
     signatureConfig: {
@@ -106,7 +98,6 @@ export const platformAlgorithmConfigs: Record<
     description: "Vercel webhooks use HMAC-SHA256",
   },
 
-  // Polar uses HMAC-SHA256
   polar: {
     platform: "polar",
     signatureConfig: {
@@ -120,7 +111,6 @@ export const platformAlgorithmConfigs: Record<
     description: "Polar webhooks use HMAC-SHA256",
   },
 
-  // Supabase uses simple token-based authentication
   supabase: {
     platform: "supabase",
     signatureConfig: {
@@ -136,7 +126,6 @@ export const platformAlgorithmConfigs: Record<
     description: "Supabase webhooks use token-based authentication",
   },
 
-  // Custom platform - can be configured per instance
   custom: {
     platform: "custom",
     signatureConfig: {
@@ -152,7 +141,6 @@ export const platformAlgorithmConfigs: Record<
     description: "Custom webhook configuration",
   },
 
-  // Unknown platform - fallback
   unknown: {
     platform: "unknown",
     signatureConfig: {
@@ -165,48 +153,43 @@ export const platformAlgorithmConfigs: Record<
   },
 };
 
-// Helper function to get algorithm config for a platform
 export function getPlatformAlgorithmConfig(
-  platform: WebhookPlatform
+  platform: WebhookPlatform,
 ): PlatformAlgorithmConfig {
   return platformAlgorithmConfigs[platform] || platformAlgorithmConfigs.unknown;
 }
 
-// Helper function to check if a platform uses a specific algorithm
 export function platformUsesAlgorithm(
   platform: WebhookPlatform,
-  algorithm: string
+  algorithm: string,
 ): boolean {
   const config = getPlatformAlgorithmConfig(platform);
   return config.signatureConfig.algorithm === algorithm;
 }
 
-// Helper function to get all platforms using a specific algorithm
 export function getPlatformsUsingAlgorithm(
-  algorithm: string
+  algorithm: string,
 ): WebhookPlatform[] {
   return Object.entries(platformAlgorithmConfigs)
     .filter(([_, config]) => config.signatureConfig.algorithm === algorithm)
     .map(([platform, _]) => platform as WebhookPlatform);
 }
 
-// Helper function to validate signature config
 export function validateSignatureConfig(config: SignatureConfig): boolean {
   if (!config.algorithm || !config.headerName) {
     return false;
   }
 
-  // Validate algorithm-specific requirements
   switch (config.algorithm) {
     case "hmac-sha256":
     case "hmac-sha1":
     case "hmac-sha512":
-      return true; // These algorithms only need headerName
+      return true;
     case "rsa-sha256":
     case "ed25519":
-      return !!config.customConfig?.publicKey; // These need public key
+      return !!config.customConfig?.publicKey;
     case "custom":
-      return !!config.customConfig; // Custom needs custom config
+      return !!config.customConfig;
     default:
       return false;
   }

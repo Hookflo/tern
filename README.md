@@ -109,6 +109,16 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 - **Polar**: HMAC-SHA256
 - **Supabase**: Token-based authentication
 
+## Webhook Verification OK Tested Platforms
+- **Stripe**
+- **Supabase**
+- **Github**
+- **Clerk**
+- **Dodo Payments**
+
+- **Other Platforms** : Yet to verify....
+
+
 ## Custom Configurations
 
 ### Custom HMAC-SHA256

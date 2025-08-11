@@ -1,11 +1,9 @@
 import { createHmac } from 'crypto';
 import { WebhookVerificationService } from './index';
 
-// Test data
 const testSecret = 'whsec_test_secret_key_12345';
 const testBody = JSON.stringify({ event: 'test', data: { id: '123' } });
 
-// Helper function to create a mock request
 function createMockRequest(
   headers: Record<string, string>,
   body: string = testBody,
@@ -17,7 +15,6 @@ function createMockRequest(
   });
 }
 
-// Helper function to create Stripe signature
 function createStripeSignature(body: string, secret: string, timestamp: number): string {
   const signedPayload = `${timestamp}.${body}`;
   const hmac = createHmac('sha256', secret);
@@ -26,14 +23,12 @@ function createStripeSignature(body: string, secret: string, timestamp: number):
   return `t=${timestamp},v1=${signature}`;
 }
 
-// Helper function to create GitHub signature
 function createGitHubSignature(body: string, secret: string): string {
   const hmac = createHmac('sha256', secret);
   hmac.update(body);
   return `sha256=${hmac.digest('hex')}`;
 }
 
-// Helper function to create Clerk signature
 function createClerkSignature(body: string, secret: string, id: string, timestamp: number): string {
   const signedContent = `${id}.${timestamp}.${body}`;
   const secretBytes = new Uint8Array(Buffer.from(secret.split('_')[1], 'base64'));
@@ -133,7 +128,7 @@ async function runTests() {
     const hmac = createHmac('sha256', testSecret);
     hmac.update(testBody);
     const signature = hmac.digest('hex');
-
+    
     const genericRequest = createMockRequest({
       'x-webhook-signature': signature,
       'content-type': 'application/json',
@@ -151,6 +146,39 @@ async function runTests() {
     }
   } catch (error) {
     console.log('   ❌ Generic test failed:', error);
+  }
+
+  // Test 4.5: Dodo Payments (Standard Webhooks / svix-style)
+  console.log('\n4.5. Testing Dodo Payments...');
+  try {
+    const webhookId = 'test-webhook-id-123';
+    const timestamp = Math.floor(Date.now() / 1000);
+    
+    // Create svix-style signature: {webhook-id}.{webhook-timestamp}.{payload}
+    const signedContent = `${webhookId}.${timestamp}.${testBody}`;
+    const hmac = createHmac('sha256', testSecret);
+    hmac.update(signedContent);
+    const signature = hmac.digest('hex');
+    
+    const dodoRequest = createMockRequest({
+      'webhook-signature': signature,
+      'webhook-id': webhookId,
+      'webhook-timestamp': timestamp.toString(),
+      'content-type': 'application/json',
+    });
+
+    const dodoResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      dodoRequest,
+      'dodopayments',
+      testSecret,
+    );
+
+    console.log('   ✅ Dodo Payments:', dodoResult.isValid ? 'PASSED' : 'FAILED');
+    if (!dodoResult.isValid) {
+      console.log('   ❌ Error:', dodoResult.error);
+    }
+  } catch (error) {
+    console.log('   ❌ Dodo Payments test failed:', error);
   }
 
   // Test 5: Token-based (Supabase)
