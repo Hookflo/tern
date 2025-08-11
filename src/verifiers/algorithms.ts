@@ -45,8 +45,7 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
         return sigMap.v1 || sigMap.signature || null;
       case "raw":
       default:
-        // For Clerk, handle space-separated signatures
-        if (this.platform === "clerk") {
+        if (this.platform === "clerk" || this.platform === "dodopayments") {
           const signatures = headerValue.split(" ");
           for (const sig of signatures) {
             const [version, signature] = sig.split(",");

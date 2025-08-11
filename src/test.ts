@@ -154,11 +154,18 @@ async function runTests() {
     const webhookId = 'test-webhook-id-123';
     const timestamp = Math.floor(Date.now() / 1000);
     
+    // Create a proper secret format for Standard Webhooks (whsec_ + base64 encoded secret)
+    const base64Secret = Buffer.from(testSecret).toString('base64');
+    const dodoSecret = `whsec_${base64Secret}`;
+    
     // Create svix-style signature: {webhook-id}.{webhook-timestamp}.{payload}
     const signedContent = `${webhookId}.${timestamp}.${testBody}`;
-    const hmac = createHmac('sha256', testSecret);
+    
+    // Use the base64-decoded secret for HMAC (like the Standard Webhooks library)
+    const secretBytes = new Uint8Array(Buffer.from(base64Secret, 'base64'));
+    const hmac = createHmac('sha256', secretBytes);
     hmac.update(signedContent);
-    const signature = hmac.digest('hex');
+    const signature = `v1,${hmac.digest('base64')}`;
     
     const dodoRequest = createMockRequest({
       'webhook-signature': signature,
@@ -170,7 +177,7 @@ async function runTests() {
     const dodoResult = await WebhookVerificationService.verifyWithPlatformConfig(
       dodoRequest,
       'dodopayments',
-      testSecret,
+      dodoSecret,
     );
 
     console.log('   ✅ Dodo Payments:', dodoResult.isValid ? 'PASSED' : 'FAILED');

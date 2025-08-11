@@ -67,6 +67,7 @@ export const platformAlgorithmConfigs: Record<
       customConfig: {
         signatureFormat: "v1={signature}",
         payloadFormat: "{id}.{timestamp}.{body}",
+        encoding: "base64",
         idHeader: "webhook-id",
       },
     },
