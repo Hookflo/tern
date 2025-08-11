@@ -14,7 +14,14 @@ export class WebhookVerificationService {
     config: WebhookConfig,
   ): Promise<WebhookVerificationResult> {
     const verifier = this.getVerifier(config);
-    return await verifier.verify(request);
+    const result = await verifier.verify(request);
+
+    // Ensure the platform is set correctly in the result
+    if (result.isValid) {
+      result.platform = config.platform;
+    }
+
+    return result;
   }
 
   private static getVerifier(config: WebhookConfig) {
@@ -36,13 +43,13 @@ export class WebhookVerificationService {
       throw new Error('Signature config is required for algorithm-based verification');
     }
 
-    // Use custom verifiers for special cases
+    // Use custom verifiers for special cases (token-based, etc.)
     if (signatureConfig.algorithm === 'custom') {
       return createCustomVerifier(secret, signatureConfig, toleranceInSeconds);
     }
 
     // Use algorithm-based verifiers for standard algorithms
-    return createAlgorithmVerifier(secret, signatureConfig, toleranceInSeconds);
+    return createAlgorithmVerifier(secret, signatureConfig, config.platform, toleranceInSeconds);
   }
 
   private static getLegacyVerifier(config: WebhookConfig) {

@@ -1,205 +1,339 @@
-import { Request as ExpressRequest, Response as ExpressResponse } from 'express';
 import { WebhookVerificationService } from './index';
 import { WebhookConfig, SignatureConfig } from './types';
 
-// Example 1: Basic usage with platform config
-export async function exampleBasicUsage(request: Request) {
-  const result = await WebhookVerificationService.verifyWithPlatformConfig(
-    request,
-    'github',
-    'your-github-secret',
-    300,
-  );
-  return result;
-}
+// Example 1: Using platform-specific configurations (Recommended)
+export async function examplePlatformSpecific() {
+  console.log('🔧 Example 1: Platform-Specific Configurations\n');
 
-// Example 2: Token-based authentication (Supabase style)
-export async function exampleTokenBased(request: Request) {
-  const result = await WebhookVerificationService.verifyTokenBased(
-    request,
-    'your-webhook-id',
-    'your-webhook-token',
-  );
-  return result;
-}
-
-// Example 3: Custom signature configuration
-export async function exampleCustomSignature(request: Request) {
-  const signatureConfig: SignatureConfig = {
-    algorithm: 'hmac-sha256',
-    headerName: 'x-custom-signature',
-    headerFormat: 'prefixed',
-    prefix: 'sha256=',
-    payloadFormat: 'raw',
+  // Stripe webhook verification
+  const stripeConfig: WebhookConfig = {
+    platform: 'stripe',
+    secret: 'whsec_your_stripe_webhook_secret',
+    toleranceInSeconds: 300,
   };
 
-  const config: WebhookConfig = {
-    platform: 'custom',
-    secret: 'your-custom-secret',
-    signatureConfig,
+  // GitHub webhook verification
+  const githubConfig: WebhookConfig = {
+    platform: 'github',
+    secret: 'your_github_webhook_secret',
+    toleranceInSeconds: 300,
   };
 
-  const result = await WebhookVerificationService.verify(request, config);
-  return result;
-}
+  // Clerk webhook verification
+  const clerkConfig: WebhookConfig = {
+    platform: 'clerk',
+    secret: 'whsec_your_clerk_webhook_secret',
+    toleranceInSeconds: 300,
+  };
 
-// Example 4: Platform detection
-export async function examplePlatformDetection(request: Request) {
-  const { detectPlatformFromHeaders } = require('./utils');
-
-  const platform = detectPlatformFromHeaders(request.headers);
-  if (platform) {
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(
-      request,
-      platform,
-      'your-secret',
-      300,
-    );
-    return result;
-  }
-
-  throw new Error('Unknown platform');
-}
-
-// Example 5: Error handling
-export async function exampleErrorHandling(request: Request) {
-  try {
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(
-      request,
-      'github',
-      'your-secret',
-      300,
-    );
-
-    if (!result.isValid) {
-      console.error('Verification failed:', result.error);
-      return { success: false, error: result.error };
-    }
-
-    return { success: true, payload: result.payload };
-  } catch (error) {
-    console.error('Verification error:', error);
-    return { success: false, error: (error as Error).message };
-  }
-}
-
-// Example 6: Batch verification
-export async function exampleBatchVerification(request: Request) {
-  const platforms = ['github', 'stripe', 'clerk'];
-  const results = [];
-
-  for (const platform of platforms) {
-    try {
-      const result = await WebhookVerificationService.verifyWithPlatformConfig(
-        request,
-        platform as any,
-        'your-secret',
-        300,
-      );
-      results.push({ platform, success: true, result });
-    } catch (error) {
-      results.push({ platform, success: false, error: (error as Error).message });
-    }
-  }
-
-  return results;
-}
-
-// Example 7: Express.js integration
-export function exampleExpressIntegration() {
-  const express = require('express');
-  const app = express();
-
-  app.post('/webhook', async (req:ExpressRequest, res:ExpressResponse) => {
-    try {
-      const fetchRequest = new Request('http://localhost/webhook', {
-        method: req.method,
-        headers: req.headers as any, // headers need to be a plain object
-        body: JSON.stringify(req.body),
-      });
-
-      const result = await WebhookVerificationService.verifyWithPlatformConfig(
-        fetchRequest,
-        'github',
-        process.env.GITHUB_WEBHOOK_SECRET || '',
-        300,
-      );
-      if (result.isValid) {
-        console.log('Webhook received:', result.payload);
-        res.status(200).json({ success: true });
-      } else {
-        res.status(401).json({ error: result.error });
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Internal server error' });
-    }
+  // Usage with Request object
+  const request = new Request('https://your-app.com/webhook', {
+    method: 'POST',
+    headers: {
+      'stripe-signature': 't=1234567890,v1=abc123...',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ event: 'payment_intent.succeeded' }),
   });
 
-  return app;
+  try {
+    const result = await WebhookVerificationService.verify(request, stripeConfig);
+
+    if (result.isValid) {
+      console.log('✅ Webhook verified successfully!');
+      console.log('Platform:', result.platform);
+      console.log('Payload:', result.payload);
+      console.log('Metadata:', result.metadata);
+    } else {
+      console.log('❌ Webhook verification failed:', result.error);
+    }
+  } catch (error) {
+    console.error('Error verifying webhook:', error);
+  }
 }
 
-// Example 8: Next.js API route
-export function exampleNextJsApiRoute() {
-  return async function handler(req: any, res: any) {
-    if (req.method !== 'POST') {
-      return res.status(405).json({ error: 'Method not allowed' });
-    }
+// Example 2: Using custom signature configurations
+export async function exampleCustomSignature() {
+  console.log('\n🔧 Example 2: Custom Signature Configurations\n');
 
-    try {
-      const result = await WebhookVerificationService.verifyWithPlatformConfig(
-        req,
-        'stripe',
-        process.env.STRIPE_WEBHOOK_SECRET || '',
-        300,
-      );
-
-      if (result.isValid) {
-        console.log('Stripe webhook:', result.payload);
-        res.status(200).json({ received: true });
-      } else {
-        res.status(401).json({ error: result.error });
-      }
-    } catch (error) {
-      res.status(500).json({ error: 'Internal server error' });
-    }
-  };
-}
-
-// Example 9: Custom platform integration
-export async function exampleCustomPlatform(request: Request) {
+  // Custom HMAC-SHA256 configuration
   const customConfig: WebhookConfig = {
     platform: 'custom',
-    secret: 'your-custom-secret',
+    secret: 'your_custom_secret',
     signatureConfig: {
       algorithm: 'hmac-sha256',
       headerName: 'x-custom-signature',
-      headerFormat: 'raw',
+      headerFormat: 'prefixed',
+      prefix: 'sha256=',
       payloadFormat: 'raw',
     },
   };
 
-  const result = await WebhookVerificationService.verify(request, customConfig);
-  return result;
+  // Custom timestamped configuration
+  const timestampedConfig: WebhookConfig = {
+    platform: 'custom',
+    secret: 'your_custom_secret',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'x-webhook-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'x-webhook-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'timestamped',
+    },
+  };
+
+  console.log('Custom configurations created for different signature formats');
 }
 
-// Example 10: Helper methods usage
-export function exampleHelperMethods() {
-  const { WebhookVerificationService } = require('./index');
+// Example 3: Using the simplified platform config method
+export async function exampleSimplifiedPlatform() {
+  console.log('\n🔧 Example 3: Simplified Platform Configuration\n');
+
+  const request = new Request('https://your-app.com/webhook', {
+    method: 'POST',
+    headers: {
+      'x-hub-signature-256': 'sha256=abc123...',
+      'x-github-event': 'push',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ ref: 'refs/heads/main' }),
+  });
+
+  try {
+    // Simple one-liner for platform-specific verification
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'github',
+      'your_github_webhook_secret',
+    );
+
+    if (result.isValid) {
+      console.log('✅ GitHub webhook verified!');
+      console.log('Event:', result.metadata?.event);
+      console.log('Payload:', result.payload);
+    } else {
+      console.log('❌ GitHub webhook verification failed:', result.error);
+    }
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+// Example 4: Token-based authentication (Supabase style)
+export async function exampleTokenBased() {
+  console.log('\n🔧 Example 4: Token-Based Authentication\n');
+
+  const request = new Request('https://your-app.com/webhook', {
+    method: 'POST',
+    headers: {
+      'x-webhook-id': 'webhook_123',
+      'x-webhook-token': 'token_456',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ event: 'database.insert' }),
+  });
+
+  try {
+    const result = await WebhookVerificationService.verifyTokenBased(
+      request,
+      'webhook_123',
+      'token_456',
+    );
+
+    if (result.isValid) {
+      console.log('✅ Token-based webhook verified!');
+      console.log('Webhook ID:', result.metadata?.id);
+      console.log('Payload:', result.payload);
+    } else {
+      console.log('❌ Token-based webhook verification failed:', result.error);
+    }
+  } catch (error) {
+    console.error('Error:', error);
+  }
+}
+
+// Example 5: Error handling and validation
+export async function exampleErrorHandling() {
+  console.log('\n🔧 Example 5: Error Handling and Validation\n');
+
+  // Test with invalid signature
+  const invalidRequest = new Request('https://your-app.com/webhook', {
+    method: 'POST',
+    headers: {
+      'stripe-signature': 't=1234567890,v1=invalid_signature',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ event: 'test' }),
+  });
+
+  try {
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      invalidRequest,
+      'stripe',
+      'whsec_your_stripe_webhook_secret',
+    );
+
+    if (!result.isValid) {
+      console.log('❌ Expected failure:', result.error);
+      console.log('Platform:', result.platform);
+    } else {
+      console.log('⚠️ Unexpected success - this should have failed');
+    }
+  } catch (error) {
+    console.error('Error during verification:', error);
+  }
+
+  // Test with missing headers
+  const missingHeadersRequest = new Request('https://your-app.com/webhook', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ event: 'test' }),
+  });
+
+  try {
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      missingHeadersRequest,
+      'stripe',
+      'whsec_your_stripe_webhook_secret',
+    );
+
+    if (!result.isValid) {
+      console.log('❌ Missing headers detected:', result.error);
+    } else {
+      console.log('⚠️ Unexpected success - should have detected missing headers');
+    }
+  } catch (error) {
+    console.error('Error during verification:', error);
+  }
+}
+
+// Example 6: Platform algorithm information
+export function examplePlatformInfo() {
+  console.log('\n🔧 Example 6: Platform Algorithm Information\n');
 
   // Get all platforms using HMAC-SHA256
-  const hmacPlatforms = WebhookVerificationService.getPlatformsUsingAlgorithm('hmac-sha256');
-  console.log('Platforms using HMAC-SHA256:', hmacPlatforms);
+  const hmacSha256Platforms = WebhookVerificationService.getPlatformsUsingAlgorithm('hmac-sha256');
+  console.log('Platforms using HMAC-SHA256:', hmacSha256Platforms);
 
   // Check if a platform uses a specific algorithm
-  const githubUsesHmac = WebhookVerificationService.platformUsesAlgorithm('github', 'hmac-sha256');
-  console.log('GitHub uses HMAC-SHA256:', githubUsesHmac);
+  const stripeUsesHmac = WebhookVerificationService.platformUsesAlgorithm('stripe', 'hmac-sha256');
+  console.log('Stripe uses HMAC-SHA256:', stripeUsesHmac);
 
-  // Validate a signature config
-  const config: SignatureConfig = {
+  const clerkUsesCustom = WebhookVerificationService.platformUsesAlgorithm('clerk', 'custom');
+  console.log('Clerk uses custom algorithm:', clerkUsesCustom);
+
+  // Validate signature config
+  const validConfig: SignatureConfig = {
     algorithm: 'hmac-sha256',
-    headerName: 'x-signature',
+    headerName: 'x-webhook-signature',
+    headerFormat: 'raw',
     payloadFormat: 'raw',
   };
-  const isValid = WebhookVerificationService.validateSignatureConfig(config);
-  console.log('Config is valid:', isValid);
+
+  const isValid = WebhookVerificationService.validateSignatureConfig(validConfig);
+  console.log('Signature config is valid:', isValid);
+}
+
+// Example 7: Real-world usage patterns
+export async function exampleRealWorldUsage() {
+  console.log('\n🔧 Example 7: Real-World Usage Patterns\n');
+
+  // Pattern 1: Express.js middleware
+  console.log('Pattern 1: Express.js Middleware');
+  console.log(`
+app.post('/webhooks/stripe', async (req, res) => {
+  const result = await WebhookVerificationService.verifyWithPlatformConfig(
+    req,
+    'stripe',
+    process.env.STRIPE_WEBHOOK_SECRET
+  );
+
+  if (!result.isValid) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  // Process the webhook
+  console.log('Stripe event:', result.payload.type);
+  res.json({ received: true });
+});
+  `);
+
+  // Pattern 2: Next.js API route
+  console.log('\nPattern 2: Next.js API Route');
+  console.log(`
+// pages/api/webhooks/github.js
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const result = await WebhookVerificationService.verifyWithPlatformConfig(
+    req,
+    'github',
+    process.env.GITHUB_WEBHOOK_SECRET
+  );
+
+  if (!result.isValid) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  // Handle GitHub webhook
+  const event = req.headers['x-github-event'];
+  console.log('GitHub event:', event);
+  
+  res.json({ received: true });
+}
+  `);
+
+  // Pattern 3: Cloudflare Workers
+  console.log('\nPattern 3: Cloudflare Workers');
+  console.log(`
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
+});
+
+async function handleRequest(request) {
+  if (request.url.includes('/webhooks/clerk')) {
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'clerk',
+      CLERK_WEBHOOK_SECRET
+    );
+
+    if (!result.isValid) {
+      return new Response(JSON.stringify({ error: result.error }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Process Clerk webhook
+    console.log('Clerk event:', result.payload.type);
+    return new Response(JSON.stringify({ received: true }));
+  }
+}
+  `);
+}
+
+// Run all examples
+export async function runAllExamples() {
+  console.log('🚀 Running Webhook Verification Examples\n');
+
+  await examplePlatformSpecific();
+  await exampleCustomSignature();
+  await exampleSimplifiedPlatform();
+  await exampleTokenBased();
+  await exampleErrorHandling();
+  examplePlatformInfo();
+  await exampleRealWorldUsage();
+
+  console.log('\n✅ All examples completed!');
+}
+
+// Run examples if this file is executed directly
+if (require.main === module) {
+  runAllExamples().catch(console.error);
 }

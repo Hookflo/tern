@@ -1,3 +1,3 @@
-import { runAllTests } from './test';
+import { runTests } from './test';
 
-runAllTests().catch(console.error);
+runTests();

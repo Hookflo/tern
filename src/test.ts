@@ -1,132 +1,233 @@
+import { createHmac } from 'crypto';
 import { WebhookVerificationService } from './index';
-import { detectPlatformFromHeaders, cleanHeaders } from './utils';
-// Mock request for testing
+
+// Test data
+const testSecret = 'whsec_test_secret_key_12345';
+const testBody = JSON.stringify({ event: 'test', data: { id: '123' } });
+
+// Helper function to create a mock request
 function createMockRequest(
   headers: Record<string, string>,
-  body: string = '{"test": "data"}',
+  body: string = testBody,
 ): Request {
-  return new Request('http://localhost/webhook', {
+  return new Request('https://example.com/webhook', {
     method: 'POST',
     headers,
     body,
   });
 }
 
-// Test GitHub webhook
-async function testGitHubWebhook() {
-  console.log('Testing GitHub webhook...');
-
-  const request = createMockRequest({
-    'x-hub-signature-256': 'sha256=abc123',
-    'content-type': 'application/json',
-  });
-
-  const result = await WebhookVerificationService.verifyWithPlatformConfig(
-    request,
-    'github',
-    'test-secret',
-    300,
-  );
-
-  console.log('GitHub result:', result);
-  return result;
+// Helper function to create Stripe signature
+function createStripeSignature(body: string, secret: string, timestamp: number): string {
+  const signedPayload = `${timestamp}.${body}`;
+  const hmac = createHmac('sha256', secret);
+  hmac.update(signedPayload);
+  const signature = hmac.digest('hex');
+  return `t=${timestamp},v1=${signature}`;
 }
 
-// Test token-based webhook (Supabase style)
-async function testTokenBasedWebhook() {
-  console.log('Testing token-based webhook...');
-
-  const request = createMockRequest({
-    'x-webhook-id': 'test-webhook-id',
-    'x-webhook-token': 'test-webhook-token',
-    'content-type': 'application/json',
-  });
-
-  const result = await WebhookVerificationService.verifyTokenBased(
-    request,
-    'test-webhook-id',
-    'test-webhook-token',
-  );
-
-  console.log('Token-based result:', result);
-  return result;
+// Helper function to create GitHub signature
+function createGitHubSignature(body: string, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(body);
+  return `sha256=${hmac.digest('hex')}`;
 }
 
-// Test platform detection
-function testPlatformDetection() {
-  console.log('Testing platform detection...');
-
-  const testCases = [
-    {
-      name: 'GitHub',
-      headers: { 'x-hub-signature-256': 'sha256=abc123' },
-    },
-    {
-      name: 'Stripe',
-      headers: { 'stripe-signature': 't=1234567890,v1=abc123' },
-    },
-    {
-      name: 'Clerk',
-      headers: { 'svix-signature': 'v1,abc123' },
-    },
-    {
-      name: 'Supabase',
-      headers: { 'x-webhook-token': 'token123' },
-    },
-  ];
-
-  for (const testCase of testCases) {
-    const request = createMockRequest(cleanHeaders(testCase.headers));
-    const detectedPlatform = detectPlatformFromHeaders(request.headers);
-    console.log(`${testCase.name}: ${detectedPlatform}`);
-  }
+// Helper function to create Clerk signature
+function createClerkSignature(body: string, secret: string, id: string, timestamp: number): string {
+  const signedContent = `${id}.${timestamp}.${body}`;
+  const secretBytes = new Uint8Array(Buffer.from(secret.split('_')[1], 'base64'));
+  const hmac = createHmac('sha256', secretBytes);
+  hmac.update(signedContent);
+  return `v1,${hmac.digest('base64')}`;
 }
 
-// Test custom signature configuration
-async function testCustomSignature() {
-  console.log('Testing custom signature...');
+async function runTests() {
+  console.log('🧪 Running Webhook Verification Tests...\n');
 
-  const request = createMockRequest({
-    'x-custom-signature': 'sha256=abc123',
-    'content-type': 'application/json',
-  });
-
-  const result = await WebhookVerificationService.verify(request, {
-    platform: 'custom',
-    secret: 'custom-secret',
-    signatureConfig: {
-      algorithm: 'hmac-sha256',
-      headerName: 'x-custom-signature',
-      headerFormat: 'prefixed',
-      prefix: 'sha256=',
-      payloadFormat: 'raw',
-    },
-  });
-
-  console.log('Custom signature result:', result);
-  return result;
-}
-
-// Run all tests
-export async function runAllTests() {
-  console.log('🚀 Running Webhook Verifier Tests\n');
-
+  // Test 1: Stripe Webhook
+  console.log('1. Testing Stripe Webhook...');
   try {
-    await testGitHubWebhook();
-    await testTokenBasedWebhook();
-    testPlatformDetection();
-    await testCustomSignature();
+    const timestamp = Math.floor(Date.now() / 1000);
+    const stripeSignature = createStripeSignature(testBody, testSecret, timestamp);
 
-    console.log('\n✅ All tests completed successfully!');
+    const stripeRequest = createMockRequest({
+      'stripe-signature': stripeSignature,
+      'content-type': 'application/json',
+    });
+
+    const stripeResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      stripeRequest,
+      'stripe',
+      testSecret,
+    );
+
+    console.log('   ✅ Stripe:', stripeResult.isValid ? 'PASSED' : 'FAILED');
+    if (!stripeResult.isValid) {
+      console.log('   ❌ Error:', stripeResult.error);
+    }
   } catch (error) {
-    console.error('\n❌ Test failed:', error);
+    console.log('   ❌ Stripe test failed:', error);
   }
+
+  // Test 2: GitHub Webhook
+  console.log('\n2. Testing GitHub Webhook...');
+  try {
+    const githubSignature = createGitHubSignature(testBody, testSecret);
+
+    const githubRequest = createMockRequest({
+      'x-hub-signature-256': githubSignature,
+      'x-github-event': 'push',
+      'x-github-delivery': 'test-delivery-id',
+      'content-type': 'application/json',
+    });
+
+    const githubResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      githubRequest,
+      'github',
+      testSecret,
+    );
+
+    console.log('   ✅ GitHub:', githubResult.isValid ? 'PASSED' : 'FAILED');
+    if (!githubResult.isValid) {
+      console.log('   ❌ Error:', githubResult.error);
+    }
+  } catch (error) {
+    console.log('   ❌ GitHub test failed:', error);
+  }
+
+  // Test 3: Clerk Webhook
+  console.log('\n3. Testing Clerk Webhook...');
+  try {
+    // Create a proper Clerk-style secret (whsec_ + base64 encoded secret)
+    const base64Secret = Buffer.from(testSecret).toString('base64');
+    const clerkSecret = `whsec_${base64Secret}`;
+    const id = 'test-id-123';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const clerkSignature = createClerkSignature(testBody, clerkSecret, id, timestamp);
+
+    const clerkRequest = createMockRequest({
+      'svix-signature': clerkSignature,
+      'svix-id': id,
+      'svix-timestamp': timestamp.toString(),
+      'content-type': 'application/json',
+    });
+
+    const clerkResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      clerkRequest,
+      'clerk',
+      clerkSecret,
+    );
+
+    console.log('   ✅ Clerk:', clerkResult.isValid ? 'PASSED' : 'FAILED');
+    if (!clerkResult.isValid) {
+      console.log('   ❌ Error:', clerkResult.error);
+    }
+  } catch (error) {
+    console.log('   ❌ Clerk test failed:', error);
+  }
+
+  // Test 4: Standard HMAC-SHA256 (Generic)
+  console.log('\n4. Testing Standard HMAC-SHA256...');
+  try {
+    const hmac = createHmac('sha256', testSecret);
+    hmac.update(testBody);
+    const signature = hmac.digest('hex');
+
+    const genericRequest = createMockRequest({
+      'x-webhook-signature': signature,
+      'content-type': 'application/json',
+    });
+
+    const genericResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      genericRequest,
+      'unknown',
+      testSecret,
+    );
+
+    console.log('   ✅ Generic HMAC-SHA256:', genericResult.isValid ? 'PASSED' : 'FAILED');
+    if (!genericResult.isValid) {
+      console.log('   ❌ Error:', genericResult.error);
+    }
+  } catch (error) {
+    console.log('   ❌ Generic test failed:', error);
+  }
+
+  // Test 5: Token-based (Supabase)
+  console.log('\n5. Testing Token-based Authentication...');
+  try {
+    const webhookId = 'test-webhook-id';
+    const webhookToken = 'test-webhook-token';
+
+    const tokenRequest = createMockRequest({
+      'x-webhook-id': webhookId,
+      'x-webhook-token': webhookToken,
+      'content-type': 'application/json',
+    });
+
+    const tokenResult = await WebhookVerificationService.verifyTokenBased(
+      tokenRequest,
+      webhookId,
+      webhookToken,
+    );
+
+    console.log('   ✅ Token-based:', tokenResult.isValid ? 'PASSED' : 'FAILED');
+    if (!tokenResult.isValid) {
+      console.log('   ❌ Error:', tokenResult.error);
+    }
+  } catch (error) {
+    console.log('   ❌ Token-based test failed:', error);
+  }
+
+  // Test 6: Invalid signatures
+  console.log('\n6. Testing Invalid Signatures...');
+  try {
+    const invalidRequest = createMockRequest({
+      'stripe-signature': 't=1234567890,v1=invalid_signature',
+      'content-type': 'application/json',
+    });
+
+    const invalidResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      invalidRequest,
+      'stripe',
+      testSecret,
+    );
+
+    console.log('   ✅ Invalid signature correctly rejected:', !invalidResult.isValid ? 'PASSED' : 'FAILED');
+    if (invalidResult.isValid) {
+      console.log('   ❌ Should have been rejected');
+    }
+  } catch (error) {
+    console.log('   ❌ Invalid signature test failed:', error);
+  }
+
+  // Test 7: Missing headers
+  console.log('\n7. Testing Missing Headers...');
+  try {
+    const missingHeaderRequest = createMockRequest({
+      'content-type': 'application/json',
+    });
+
+    const missingHeaderResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      missingHeaderRequest,
+      'stripe',
+      testSecret,
+    );
+
+    console.log('   ✅ Missing headers correctly rejected:', !missingHeaderResult.isValid ? 'PASSED' : 'FAILED');
+    if (missingHeaderResult.isValid) {
+      console.log('   ❌ Should have been rejected');
+    }
+  } catch (error) {
+    console.log('   ❌ Missing headers test failed:', error);
+  }
+
+  console.log('\n🎉 All tests completed!');
 }
 
-// Export for use in other files
-export {
-  testGitHubWebhook,
-  testTokenBasedWebhook,
-  testPlatformDetection,
-  testCustomSignature,
-};
+// Run tests if this file is executed directly
+if (require.main === module) {
+  runTests().catch(console.error);
+}
+
+export { runTests };

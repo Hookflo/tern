@@ -2,7 +2,7 @@ import {
   PlatformAlgorithmConfig,
   WebhookPlatform,
   SignatureConfig,
-} from "../types";
+} from '../types';
 
 // Platform to algorithm mapping configuration
 export const platformAlgorithmConfigs: Record<
@@ -11,147 +11,147 @@ export const platformAlgorithmConfigs: Record<
 > = {
   // GitHub uses HMAC-SHA256 with prefixed signature
   github: {
-    platform: "github",
+    platform: 'github',
     signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "x-hub-signature-256",
-      headerFormat: "prefixed",
-      prefix: "sha256=",
+      algorithm: 'hmac-sha256',
+      headerName: 'x-hub-signature-256',
+      headerFormat: 'prefixed',
+      prefix: 'sha256=',
       timestampHeader: undefined, // GitHub doesn't use timestamp validation
-      payloadFormat: "raw",
+      payloadFormat: 'raw',
     },
-    description: "GitHub webhooks use HMAC-SHA256 with sha256= prefix",
+    description: 'GitHub webhooks use HMAC-SHA256 with sha256= prefix',
   },
 
   // Stripe uses HMAC-SHA256 with comma-separated format
   stripe: {
-    platform: "stripe",
+    platform: 'stripe',
     signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "stripe-signature",
-      headerFormat: "comma-separated",
+      algorithm: 'hmac-sha256',
+      headerName: 'stripe-signature',
+      headerFormat: 'comma-separated',
       timestampHeader: undefined, // Timestamp is embedded in signature
-      payloadFormat: "timestamped",
+      payloadFormat: 'timestamped',
       customConfig: {
-        signatureFormat: "t={timestamp},v1={signature}",
+        signatureFormat: 't={timestamp},v1={signature}',
       },
     },
-    description: "Stripe webhooks use HMAC-SHA256 with comma-separated format",
+    description: 'Stripe webhooks use HMAC-SHA256 with comma-separated format',
   },
 
   // Clerk uses HMAC-SHA256 with custom base64 encoding
   clerk: {
-    platform: "clerk",
+    platform: 'clerk',
     signatureConfig: {
-      algorithm: "custom",
-      headerName: "svix-signature",
-      headerFormat: "raw",
-      timestampHeader: "svix-timestamp",
-      timestampFormat: "unix",
-      payloadFormat: "custom",
+      algorithm: 'hmac-sha256',
+      headerName: 'svix-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'svix-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'custom',
       customConfig: {
-        type: "clerk-custom",
-        signatureFormat: "v1={signature}",
-        payloadFormat: "{id}.{timestamp}.{body}",
-        encoding: "base64",
+        signatureFormat: 'v1={signature}',
+        payloadFormat: '{id}.{timestamp}.{body}',
+        encoding: 'base64',
+        idHeader: 'svix-id',
       },
     },
-    description: "Clerk webhooks use HMAC-SHA256 with base64 encoding",
+    description: 'Clerk webhooks use HMAC-SHA256 with base64 encoding',
   },
 
   // Dodo Payments uses HMAC-SHA256
   dodopayments: {
-    platform: "dodopayments",
+    platform: 'dodopayments',
     signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "webhook-signature",
-      headerFormat: "raw",
-      timestampHeader: "webhook-timestamp",
-      timestampFormat: "unix",
-      payloadFormat: "raw",
+      algorithm: 'hmac-sha256',
+      headerName: 'webhook-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'webhook-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'raw',
     },
-    description: "Dodo Payments webhooks use HMAC-SHA256",
+    description: 'Dodo Payments webhooks use HMAC-SHA256',
   },
 
   // Shopify uses HMAC-SHA256
   shopify: {
-    platform: "shopify",
+    platform: 'shopify',
     signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "x-shopify-hmac-sha256",
-      headerFormat: "raw",
-      timestampHeader: "x-shopify-shop-domain",
-      payloadFormat: "raw",
+      algorithm: 'hmac-sha256',
+      headerName: 'x-shopify-hmac-sha256',
+      headerFormat: 'raw',
+      timestampHeader: 'x-shopify-shop-domain',
+      payloadFormat: 'raw',
     },
-    description: "Shopify webhooks use HMAC-SHA256",
+    description: 'Shopify webhooks use HMAC-SHA256',
   },
 
   // Vercel uses HMAC-SHA256
   vercel: {
-    platform: "vercel",
+    platform: 'vercel',
     signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "x-vercel-signature",
-      headerFormat: "raw",
-      timestampHeader: "x-vercel-timestamp",
-      timestampFormat: "unix",
-      payloadFormat: "raw",
+      algorithm: 'hmac-sha256',
+      headerName: 'x-vercel-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'x-vercel-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'raw',
     },
-    description: "Vercel webhooks use HMAC-SHA256",
+    description: 'Vercel webhooks use HMAC-SHA256',
   },
 
   // Polar uses HMAC-SHA256
   polar: {
-    platform: "polar",
+    platform: 'polar',
     signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "x-polar-signature",
-      headerFormat: "raw",
-      timestampHeader: "x-polar-timestamp",
-      timestampFormat: "unix",
-      payloadFormat: "raw",
+      algorithm: 'hmac-sha256',
+      headerName: 'x-polar-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'x-polar-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'raw',
     },
-    description: "Polar webhooks use HMAC-SHA256",
+    description: 'Polar webhooks use HMAC-SHA256',
   },
 
   // Supabase uses simple token-based authentication
   supabase: {
-    platform: "supabase",
+    platform: 'supabase',
     signatureConfig: {
-      algorithm: "custom",
-      headerName: "x-webhook-token",
-      headerFormat: "raw",
-      payloadFormat: "raw",
+      algorithm: 'custom',
+      headerName: 'x-webhook-token',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
       customConfig: {
-        type: "token-based",
-        idHeader: "x-webhook-id",
+        type: 'token-based',
+        idHeader: 'x-webhook-id',
       },
     },
-    description: "Supabase webhooks use token-based authentication",
+    description: 'Supabase webhooks use token-based authentication',
   },
 
   // Custom platform - can be configured per instance
   custom: {
-    platform: "custom",
+    platform: 'custom',
     signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "x-webhook-token",
-      headerFormat: "raw",
-      payloadFormat: "raw",
+      algorithm: 'hmac-sha256',
+      headerName: 'x-webhook-token',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
     },
-    description: "Custom webhook configuration",
+    description: 'Custom webhook configuration',
   },
 
   // Unknown platform - fallback
   unknown: {
-    platform: "unknown",
+    platform: 'unknown',
     signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "x-webhook-signature",
-      headerFormat: "raw",
-      payloadFormat: "raw",
+      algorithm: 'hmac-sha256',
+      headerName: 'x-webhook-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
     },
-    description: "Unknown platform - using default HMAC-SHA256",
+    description: 'Unknown platform - using default HMAC-SHA256',
   },
 };
 
@@ -188,14 +188,14 @@ export function validateSignatureConfig(config: SignatureConfig): boolean {
 
   // Validate algorithm-specific requirements
   switch (config.algorithm) {
-    case "hmac-sha256":
-    case "hmac-sha1":
-    case "hmac-sha512":
+    case 'hmac-sha256':
+    case 'hmac-sha1':
+    case 'hmac-sha512':
       return true; // These algorithms only need headerName
-    case "rsa-sha256":
-    case "ed25519":
+    case 'rsa-sha256':
+    case 'ed25519':
       return !!config.customConfig?.publicKey; // These need public key
-    case "custom":
+    case 'custom':
       return !!config.customConfig; // Custom needs custom config
     default:
       return false;

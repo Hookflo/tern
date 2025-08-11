@@ -1,6 +1,6 @@
-# Tern
+# Tern - Algorithm Agnostic Webhook Verification Framework
 
-A robust, scalable webhook verification framework supporting multiple platforms and signature algorithms. Built with TypeScript for maximum type safety and developer experience.
+A robust, algorithm-agnostic webhook verification framework that supports multiple platforms with accurate signature verification and payload retrieval.
 
 [![npm version](https://img.shields.io/npm/v/@hookflo/tern)](https://www.npmjs.com/package/@hookflo/tern)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](https://www.typescriptlang.org/)
@@ -9,21 +9,15 @@ A robust, scalable webhook verification framework supporting multiple platforms 
 Tern is a zero-dependency TypeScript framework for robust webhook verification across multiple platforms and algorithms.
 
 <img width="1396" height="470" style="border-radius: 10px" alt="tern bird nature" src="https://github.com/user-attachments/assets/5f0da3e6-1aba-4f88-a9d7-9d8698845c39" />
-
-
 ## Features
 
-- **Algorithm-first architecture**: Decouples platform logic from signature verification — verify based on cryptographic algorithm, not hardcoded platform rules.
-- **Platform configuration**: Each platform specifies which algorithm to use
-- **Extensible framework**: Easy to add new algorithms and platforms
-- **Supported algorithms**:
-  - `hmac-sha256` – e.g., GitHub, Stripe, Shopify
-  - `hmac-sha1` – legacy GitHub support
-  - `hmac-sha512` – custom implementations
-  - `token-based` – simple token matching
-  - `custom` – fully user-defined logic
-- **TypeScript support**: Full type safety and IntelliSense
-- **Zero dependencies**: Only uses Node.js built-in modules
+- **Algorithm Agnostic**: Decouples platform logic from signature verification — verify based on cryptographic algorithm, not hardcoded platform rules.
+Supports HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, and custom algorithms
+
+- **Platform Specific**: Accurate implementations for Stripe, GitHub, Clerk, and other platforms
+- **Flexible Configuration**: Custom signature configurations for any webhook format
+- **Type Safe**: Full TypeScript support with comprehensive type definitions
+- **Framework Agnostic**: Works with Express.js, Next.js, Cloudflare Workers, and more
 
 ## Why Tern?
 
@@ -39,93 +33,194 @@ Most webhook verifiers are tightly coupled to specific platforms or hardcoded lo
 
 ```bash
 npm install @hookflo/tern
-# or
-yarn add @hookflo/tern
-# or
-pnpm add @hookflo/tern
 ```
 
 ## Quick Start
 
 ### Basic Usage
 
-```ts
+```typescript
 import { WebhookVerificationService } from '@hookflo/tern';
 
-// Verify a GitHub webhook
+// Verify a Stripe webhook
 const result = await WebhookVerificationService.verifyWithPlatformConfig(
   request,
-  'github',
-  'your-github-secret',
-  300
+  'stripe',
+  'whsec_your_stripe_webhook_secret'
 );
 
 if (result.isValid) {
-  console.log('Webhook verified successfully:', result.payload);
+  console.log('Webhook verified!', result.payload);
 } else {
-  console.error('Verification failed:', result.error);
+  console.log('Verification failed:', result.error);
 }
 ```
 
-### Token-based Authentication (Supabase, Custom)
+### Platform-Specific Configurations
 
-```ts
-// For platforms that use simple token-based auth
-const result = await WebhookVerificationService.verifyTokenBased(
-  request,
-  'your-webhook-id',
-  'your-webhook-token'
-);
-```
-
-### Custom Signature Configuration
-
-```ts
+```typescript
 import { WebhookVerificationService } from '@hookflo/tern';
 
-const config = {
-  platform: 'custom',
-  secret: 'your-secret',
-  signatureConfig: {
-    algorithm: 'hmac-sha256',
-    headerName: 'x-signature',
-    headerFormat: 'prefixed',
-    prefix: 'sha256=',
-    payloadFormat: 'raw'
-  }
+// Stripe webhook
+const stripeConfig = {
+  platform: 'stripe',
+  secret: 'whsec_your_stripe_webhook_secret',
+  toleranceInSeconds: 300,
 };
 
-const result = await WebhookVerificationService.verify(request, config);
+// GitHub webhook
+const githubConfig = {
+  platform: 'github',
+  secret: 'your_github_webhook_secret',
+  toleranceInSeconds: 300,
+};
+
+// Clerk webhook
+const clerkConfig = {
+  platform: 'clerk',
+  secret: 'whsec_your_clerk_webhook_secret',
+  toleranceInSeconds: 300,
+};
+
+const result = await WebhookVerificationService.verify(request, stripeConfig);
 ```
-
-## Header Format Options
-
-| Format             | Description                                                  |
-|--------------------|--------------------------------------------------------------|
-| `prefixed`         | Signature starts with a prefix (e.g., `sha256=...`)          |
-| `raw`              | Raw digest value in the header                               |
-| `base64`           | Base64-encoded HMAC or digest                                |
-| `comma-separated`  | Header contains comma-delimited key-value pairs              |
 
 ## Supported Platforms
 
-### HMAC-SHA256 (Most Common)
+### Stripe
+- **Signature Format**: `t={timestamp},v1={signature}`
+- **Algorithm**: HMAC-SHA256
+- **Payload Format**: `{timestamp}.{body}`
 
-| Platform  | Header                     | Format           |
-|-----------|----------------------------|------------------|
-| GitHub    | `x-hub-signature-256`      | `sha256=...`     |
-| Stripe    | `stripe-signature`         | Comma-separated  |
-| Shopify   | `x-shopify-hmac-sha256`    | Raw              |
-| Vercel    | `x-vercel-signature`       | Raw              |
-| Polar     | `x-polar-signature`        | Raw              |
+### GitHub
+- **Signature Format**: `sha256={signature}`
+- **Algorithm**: HMAC-SHA256
+- **Payload Format**: Raw body
 
-### Custom Algorithms
+### Clerk
+- **Signature Format**: `v1,{signature}` (space-separated)
+- **Algorithm**: HMAC-SHA256 with base64 encoding
+- **Payload Format**: `{id}.{timestamp}.{body}`
 
-| Platform  | Method         | Notes                        |
-|-----------|----------------|------------------------------|
-| Supabase  | Token-based    | Header: `x-webhook-token`    |
-| Clerk     | Base64         | Header: `svix-signature`     |
-| Stripe    | Custom         | Comma-separated with `t=...` |
+### Other Platforms
+- **Dodo Payments**: HMAC-SHA256
+- **Shopify**: HMAC-SHA256
+- **Vercel**: HMAC-SHA256
+- **Polar**: HMAC-SHA256
+- **Supabase**: Token-based authentication
+
+## Custom Configurations
+
+### Custom HMAC-SHA256
+
+```typescript
+const customConfig = {
+  platform: 'custom',
+  secret: 'your_custom_secret',
+  signatureConfig: {
+    algorithm: 'hmac-sha256',
+    headerName: 'x-custom-signature',
+    headerFormat: 'prefixed',
+    prefix: 'sha256=',
+    payloadFormat: 'raw',
+  },
+};
+```
+
+### Custom Timestamped Payload
+
+```typescript
+const timestampedConfig = {
+  platform: 'custom',
+  secret: 'your_custom_secret',
+  signatureConfig: {
+    algorithm: 'hmac-sha256',
+    headerName: 'x-webhook-signature',
+    headerFormat: 'raw',
+    timestampHeader: 'x-webhook-timestamp',
+    timestampFormat: 'unix',
+    payloadFormat: 'timestamped',
+  },
+};
+```
+
+## Framework Integration
+
+### Express.js
+
+```typescript
+app.post('/webhooks/stripe', async (req, res) => {
+  const result = await WebhookVerificationService.verifyWithPlatformConfig(
+    req,
+    'stripe',
+    process.env.STRIPE_WEBHOOK_SECRET
+  );
+
+  if (!result.isValid) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  // Process the webhook
+  console.log('Stripe event:', result.payload.type);
+  res.json({ received: true });
+});
+```
+
+### Next.js API Route
+
+```typescript
+// pages/api/webhooks/github.js
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  const result = await WebhookVerificationService.verifyWithPlatformConfig(
+    req,
+    'github',
+    process.env.GITHUB_WEBHOOK_SECRET
+  );
+
+  if (!result.isValid) {
+    return res.status(400).json({ error: result.error });
+  }
+
+  // Handle GitHub webhook
+  const event = req.headers['x-github-event'];
+  console.log('GitHub event:', event);
+  
+  res.json({ received: true });
+}
+```
+
+### Cloudflare Workers
+
+```typescript
+addEventListener('fetch', event => {
+  event.respondWith(handleRequest(event.request));
+});
+
+async function handleRequest(request) {
+  if (request.url.includes('/webhooks/clerk')) {
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'clerk',
+      CLERK_WEBHOOK_SECRET
+    );
+
+    if (!result.isValid) {
+      return new Response(JSON.stringify({ error: result.error }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Process Clerk webhook
+    console.log('Clerk event:', result.payload.type);
+    return new Response(JSON.stringify({ received: true }));
+  }
+}
+```
 
 ## API Reference
 
@@ -133,295 +228,77 @@ const result = await WebhookVerificationService.verify(request, config);
 
 #### `verify(request: Request, config: WebhookConfig): Promise<WebhookVerificationResult>`
 
-Verify a webhook using a configuration object.
-
-```ts
-const config = {
-  platform: 'github',
-  secret: 'your-secret',
-  toleranceInSeconds: 300
-};
-
-const result = await WebhookVerificationService.verify(request, config);
-```
+Verifies a webhook using the provided configuration.
 
 #### `verifyWithPlatformConfig(request: Request, platform: WebhookPlatform, secret: string, toleranceInSeconds?: number): Promise<WebhookVerificationResult>`
 
-Verify a webhook using platform-specific configuration.
-
-```ts
-const result = await WebhookVerificationService.verifyWithPlatformConfig(
-  request,
-  'stripe',
-  'your-stripe-secret',
-  300
-);
-```
+Simplified verification using platform-specific configurations.
 
 #### `verifyTokenBased(request: Request, webhookId: string, webhookToken: string): Promise<WebhookVerificationResult>`
 
-Verify a webhook using simple token-based authentication.
+Verifies token-based webhooks (like Supabase).
 
-```ts
-const result = await WebhookVerificationService.verifyTokenBased(
-  request,
-  'your-webhook-id',
-  'your-webhook-token'
-);
-```
+### Types
 
-### Utility Functions
+#### `WebhookVerificationResult`
 
-#### `detectPlatformFromHeaders(headers: Headers): WebhookPlatform | null`
-
-Automatically detect the platform from request headers.
-
-```ts
-import { detectPlatformFromHeaders } from '@hookflo/tern';
-
-const platform = detectPlatformFromHeaders(request.headers);
-if (platform) {
-  const result = await WebhookVerificationService.verifyWithPlatformConfig(
-    request, platform, 'your-secret', 300
-  );
+```typescript
+interface WebhookVerificationResult {
+  isValid: boolean;
+  error?: string;
+  platform: WebhookPlatform;
+  payload?: any;
+  metadata?: {
+    timestamp?: string;
+    id?: string | null;
+    [key: string]: any;
+  };
 }
 ```
 
-#### `getPlatformsUsingAlgorithm(algorithm: string): WebhookPlatform[]`
-
-Get all platforms that use a specific algorithm.
-
-```ts
-import { WebhookVerificationService } from '@hookflo/tern';
-
-const hmacPlatforms = WebhookVerificationService.getPlatformsUsingAlgorithm('hmac-sha256');
-// Returns: ['github', 'stripe', 'clerk', 'dodopayments', ...]
-```
-
-## Usage Examples
-
-### Express.js Integration
+#### `WebhookConfig`
 
 ```typescript
-import express from 'express';
-import { WebhookVerificationService } from '@hookflo/tern';
-
-const app = express();
-
-app.post('/webhook', async (req, res) => {
-  try {
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(
-      req,
-      'github',
-      process.env.GITHUB_WEBHOOK_SECRET,
-      300
-    );
-
-    if (result.isValid) {
-      // Process the webhook
-      console.log('Webhook received:', result.payload);
-      res.status(200).json({ success: true });
-    } else {
-      res.status(401).json({ error: result.error });
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-```
-
-### Next.js API Route
-
-```typescript
-// pages/api/webhook.ts
-import { NextApiRequest, NextApiResponse } from 'next';
-import { WebhookVerificationService } from 'tern';
-
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  try {
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(
-      req as any,
-      'stripe',
-      process.env.STRIPE_WEBHOOK_SECRET,
-      300
-    );
-
-    if (result.isValid) {
-      // Handle the webhook
-      console.log('Stripe webhook:', result.payload);
-      res.status(200).json({ received: true });
-    } else {
-      res.status(401).json({ error: result.error });
-    }
-  } catch (error) {
-    res.status(500).json({ error: 'Internal server error' });
-  }
-}
-```
-
-### Platform Detection
-
-```typescript
-import { detectPlatformFromHeaders, WebhookVerificationService } from '@hookflo/tern';
-
-async function handleWebhook(request: Request) {
-  const platform = detectPlatformFromHeaders(request.headers);
-  
-  if (!platform) {
-    throw new Error('Unknown webhook platform');
-  }
-
-  const secret = getSecretForPlatform(platform); // Your secret management
-  const result = await WebhookVerificationService.verifyWithPlatformConfig(
-    request,
-    platform,
-    secret,
-    300
-  );
-
-  return result;
-}
-```
-
-### Custom Platform Integration
-
-```typescript
-import { WebhookVerificationService } from 'tern';
-
-const customConfig = {
-  platform: 'custom',
-  secret: 'your-custom-secret',
-  signatureConfig: {
-    algorithm: 'hmac-sha256',
-    headerName: 'x-custom-signature',
-    headerFormat: 'raw',
-    payloadFormat: 'raw'
-  }
-};
-
-const result = await WebhookVerificationService.verify(request, customConfig);
-```
-
-## 🔧 Adding New Platforms
-
-### Step 1: Add Platform Type
-
-```typescript
-// In your project, extend the types
-declare module '@hookflo/tern' {
-  interface WebhookPlatform {
-    'your-platform': 'your-platform';
-  }
-}
-```
-
-### Step 2: Use Custom Configuration
-
-```typescript
-const config = {
-  platform: 'custom',
-  secret: 'your-secret',
-  signatureConfig: {
-    algorithm: 'hmac-sha256', // or 'custom'
-    headerName: 'x-your-signature',
-    headerFormat: 'raw',
-    payloadFormat: 'raw'
-  }
-};
-```
-
-## 📊 Platform Support Matrix
-
-| Platform | Algorithm | Header | Format |
-|----------|-----------|--------|--------|
-| GitHub | HMAC-SHA256 | `x-hub-signature-256` | `sha256=...` |
-| Stripe | HMAC-SHA256 | `stripe-signature` | `t=...,v1=...` |
-| Clerk | Custom | `svix-signature` | Base64 |
-| Supabase | Token-based | `x-webhook-token` | Simple |
-| Shopify | HMAC-SHA256 | `x-shopify-hmac-sha256` | Raw |
-| Vercel | HMAC-SHA256 | `x-vercel-signature` | Raw |
-| Polar | HMAC-SHA256 | `x-polar-signature` | Raw |
-
-## 🔍 Error Handling
-
-```typescript
-try {
-  const result = await WebhookVerificationService.verifyWithPlatformConfig(
-    request,
-    'github',
-    'your-secret',
-    300
-  );
-
-  if (!result.isValid) {
-    console.error('Verification failed:', result.error);
-    return res.status(401).json({ error: result.error });
-  }
-
-  // Process webhook
-  console.log('Webhook verified:', result.payload);
-} catch (error) {
-  console.error('Verification error:', error);
-  return res.status(500).json({ error: 'Internal server error' });
+interface WebhookConfig {
+  platform: WebhookPlatform;
+  secret: string;
+  toleranceInSeconds?: number;
+  signatureConfig?: SignatureConfig;
 }
 ```
 
 ## Testing
 
-```typescript
-import { WebhookVerificationService } from 'tern';
+Run the test suite:
 
-// Create a mock request
-const mockRequest = new Request('http://localhost/webhook', {
-  method: 'POST',
-  headers: {
-    'x-hub-signature-256': 'sha256=abc123',
-    'content-type': 'application/json'
-  },
-  body: JSON.stringify({ test: 'data' })
-});
-
-const result = await WebhookVerificationService.verifyWithPlatformConfig(
-  mockRequest,
-  'github',
-  'test-secret',
-  300
-);
-
-console.log('Test result:', result);
+```bash
+npm test
 ```
 
-## Performance
+Run examples:
 
-- **Zero dependencies**: Only uses Node.js built-in modules
-- **Optimized algorithms**: Efficient HMAC verification
-- **Timing-safe comparisons**: Prevents timing attacks
-- **Minimal overhead**: Lightweight and fast
+```bash
+npm run examples
+```
 
-## Security Features
+## Examples
 
-- **Timing-safe comparisons**: Prevents timing attacks
-- **Proper validation**: Comprehensive input validation
-- **Secure defaults**: Secure by default configuration
-- **Algorithm flexibility**: Support for multiple signature algorithms
+See the [examples.ts](./src/examples.ts) file for comprehensive usage examples.
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests
+4. Add tests for new functionality
 5. Submit a pull request
 
-## License
+## 📄 License
 
-MIT License - see LICENSE file for details.
+MIT License - see [LICENSE](./LICENSE) for details.
 
-## Support
+## 🔗 Links
 
-- **Issues**: [GitHub Issues](https://github.com/Hookflo/tern/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/Hookflo/tern/discussions)
+- [Documentation](./USAGE.md)
+- [Framework Summary](./FRAMEWORK_SUMMARY.md)
+- [Issues](https://github.com/your-repo/tern/issues)
