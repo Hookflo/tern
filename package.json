@@ -12,7 +12,9 @@
     "lint:fix": "eslint 'src/**/*.ts' --fix",
     "format": "prettier --write src/**/*.ts",
     "prepare": "npm run build",
-    "publish": "npm publish",
+    "release:patch": "npm run build && npm version patch && npm publish",
+    "release:minor": "npm run build && npm version minor && npm publish",
+    "release:major": "npm run build && npm version major && npm publish",
     "clean": "rm -rf dist",
     "prebuild": "npm run clean"
   },

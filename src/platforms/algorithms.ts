@@ -138,6 +138,10 @@ export const platformAlgorithmConfigs: Record<
       headerName: "x-webhook-token",
       headerFormat: "raw",
       payloadFormat: "raw",
+      customConfig: {
+        type: "token-based",
+        idHeader: "x-webhook-id",
+      },
     },
     description: "Custom webhook configuration",
   },
