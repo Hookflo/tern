@@ -68,7 +68,13 @@ export const platformAlgorithmConfigs: Record<
       headerFormat: "raw",
       timestampHeader: "webhook-timestamp",
       timestampFormat: "unix",
-      payloadFormat: "raw",
+      payloadFormat: "custom",
+      customConfig: {
+        signatureFormat: "v1={signature}",
+        payloadFormat: "{id}.{timestamp}.{body}",
+        encoding: "base64",
+        idHeader: "webhook-id",
+      },
     },
     description: "Dodo Payments webhooks use HMAC-SHA256",
   },
@@ -161,7 +167,7 @@ export const platformAlgorithmConfigs: Record<
 
 // Helper function to get algorithm config for a platform
 export function getPlatformAlgorithmConfig(
-  platform: WebhookPlatform,
+  platform: WebhookPlatform
 ): PlatformAlgorithmConfig {
   return platformAlgorithmConfigs[platform] || platformAlgorithmConfigs.unknown;
 }
@@ -169,7 +175,7 @@ export function getPlatformAlgorithmConfig(
 // Helper function to check if a platform uses a specific algorithm
 export function platformUsesAlgorithm(
   platform: WebhookPlatform,
-  algorithm: string,
+  algorithm: string
 ): boolean {
   const config = getPlatformAlgorithmConfig(platform);
   return config.signatureConfig.algorithm === algorithm;
@@ -177,7 +183,7 @@ export function platformUsesAlgorithm(
 
 // Helper function to get all platforms using a specific algorithm
 export function getPlatformsUsingAlgorithm(
-  algorithm: string,
+  algorithm: string
 ): WebhookPlatform[] {
   return Object.entries(platformAlgorithmConfigs)
     .filter(([_, config]) => config.signatureConfig.algorithm === algorithm)
