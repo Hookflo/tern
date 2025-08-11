@@ -109,6 +109,57 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 - **Polar**: HMAC-SHA256
 - **Supabase**: Token-based authentication
 
+## Custom Platform Configuration
+
+This framework is fully configuration-driven. You can verify webhooks from any provider—even if it is not built-in—by supplying a custom configuration object. This allows you to support new or proprietary platforms instantly, without waiting for a library update.
+
+### Example: Standard HMAC-SHA256 Webhook
+
+```typescript
+import { WebhookVerificationService } from '@hookflo/tern';
+
+const acmeConfig = {
+  platform: 'acmepay',
+  secret: 'acme_secret',
+  signatureConfig: {
+    algorithm: 'hmac-sha256',
+    headerName: 'x-acme-signature',
+    headerFormat: 'raw',
+    timestampHeader: 'x-acme-timestamp',
+    timestampFormat: 'unix',
+    payloadFormat: 'timestamped', // signs as {timestamp}.{body}
+  }
+};
+
+const result = await WebhookVerificationService.verify(request, acmeConfig);
+```
+
+### Example: Svix/Standard Webhooks (Clerk, Dodo Payments, etc.)
+
+```typescript
+const svixConfig = {
+  platform: 'my-svix-platform',
+  secret: 'whsec_abc123...',
+  signatureConfig: {
+    algorithm: 'hmac-sha256',
+    headerName: 'webhook-signature',
+    headerFormat: 'raw',
+    timestampHeader: 'webhook-timestamp',
+    timestampFormat: 'unix',
+    payloadFormat: 'custom',
+    customConfig: {
+      payloadFormat: '{id}.{timestamp}.{body}',
+      idHeader: 'webhook-id',
+      // encoding: 'base64' // only if the provider uses base64, otherwise omit
+    }
+  }
+};
+
+const result = await WebhookVerificationService.verify(request, svixConfig);
+```
+
+You can configure any combination of algorithm, header, payload, and encoding. See the `SignatureConfig` type for all options.
+
 ## Webhook Verification OK Tested Platforms
 - **Stripe**
 - **Supabase**
@@ -311,4 +362,4 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 - [Documentation](./USAGE.md)
 - [Framework Summary](./FRAMEWORK_SUMMARY.md)
-- [Issues](https://github.com/your-repo/tern/issues)
+- [Issues](https://github.com/Hookflo/tern/issues)
