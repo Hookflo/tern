@@ -4,6 +4,7 @@ import { WebhookVerificationResult, SignatureConfig, WebhookPlatform } from '../
 
 export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   protected config: SignatureConfig;
+
   protected platform: WebhookPlatform;
 
   constructor(
@@ -113,7 +114,7 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     }
 
     const customFormat = this.config.customConfig.payloadFormat;
-    
+
     // Handle Clerk-style format: {id}.{timestamp}.{body}
     if (customFormat.includes('{id}') && customFormat.includes('{timestamp}')) {
       const id = request.headers.get(this.config.customConfig.idHeader || 'x-webhook-id');
@@ -230,7 +231,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       }
 
       const rawBody = await request.text();
-      
+
       // Extract timestamp based on platform configuration
       let timestamp: number | null = null;
       if (this.config.headerFormat === 'comma-separated') {
