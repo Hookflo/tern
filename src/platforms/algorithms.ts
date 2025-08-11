@@ -70,7 +70,8 @@ export const platformAlgorithmConfigs: Record<
         idHeader: "webhook-id",
       },
     },
-    description: "Dodo Payments webhooks use HMAC-SHA256 with svix-style format (Standard Webhooks)",
+    description:
+      "Dodo Payments webhooks use HMAC-SHA256 with svix-style format (Standard Webhooks)",
   },
 
   shopify: {
