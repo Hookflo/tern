@@ -2,6 +2,10 @@
 
 A robust, algorithm-agnostic webhook verification framework that supports multiple platforms with accurate signature verification and payload retrieval.
 
+```bash
+npm install @hookflo/tern
+```
+
 [![npm version](https://img.shields.io/npm/v/@hookflo/tern)](https://www.npmjs.com/package/@hookflo/tern)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
