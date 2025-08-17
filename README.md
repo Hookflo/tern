@@ -1,6 +1,7 @@
 # Tern - Algorithm Agnostic Webhook Verification Framework
 
 A robust, algorithm-agnostic webhook verification framework that supports multiple platforms with accurate signature verification and payload retrieval.
+The same framework that secures webhook verification at [Hookflo](https://hookflo.com).
 
 ```bash
 npm install @hookflo/tern
@@ -19,7 +20,7 @@ Tern is a zero-dependency TypeScript framework for robust webhook verification a
 - **Algorithm Agnostic**: Decouples platform logic from signature verification — verify based on cryptographic algorithm, not hardcoded platform rules.
 Supports HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, and custom algorithms
 
-- **Platform Specific**: Accurate implementations for Stripe, GitHub, Clerk, and other platforms
+- **Platform Specific**: Accurate implementations for **Stripe, GitHub, Supabase, Clerk**, and other platforms
 - **Flexible Configuration**: Custom signature configurations for any webhook format
 - **Type Safe**: Full TypeScript support with comprehensive type definitions
 - **Framework Agnostic**: Works with Express.js, Next.js, Cloudflare Workers, and more
