@@ -1,0 +1,26 @@
+name: OpenHands Agent
+
+on:
+  issues:
+    types: [opened, labeled]
+
+jobs:
+  openhands:
+    if: contains(github.event.issue.labels.*.name, 'auto-fix')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run OpenHands
+        uses: All-Hands-AI/openhands@v0.9.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          llm-provider: groq
+          groq-api-key: ${{ secrets.GROQ_API_KEY }}
+          pr-draft: true 
+          pr-reviewer: prateek32177
