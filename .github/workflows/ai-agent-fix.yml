@@ -1,26 +1,23 @@
-name: OpenHands Agent
+name: Resolve Issue with OpenHands
 
 on:
   issues:
-    types: [opened, labeled]
+    types: [labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
 
 jobs:
-  openhands:
-    if: contains(github.event.issue.labels.*.name, 'auto-fix')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Run OpenHands
-        uses: All-Hands-AI/openhands@v0.54.0
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          llm-provider: groq
-          groq-api-key: ${{ secrets.GROQ_API_KEY }}
-          pr-draft: true 
-          pr-reviewer: prateek32177
+  call-openhands-resolver:
+    uses: All-Hands-AI/OpenHands/.github/workflows/openhands-resolver.yml@main
+    with:
+      macro: ${{ vars.OPENHANDS_MACRO || '@openhands-agent' }}
+      max_iterations: ${{ fromJson(vars.OPENHANDS_MAX_ITER || 15) }}
+      base_container_image: ${{ vars.OPENHANDS_BASE_CONTAINER_IMAGE || '' }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || 'groq/llama-3.3-70b-versatile' }}
+      target_branch: ${{ vars.TARGET_BRANCH || 'main' }}
+      runner: ${{ vars.TARGET_RUNNER || 'ubuntu-latest' }}
+    secrets:
+      LLM_API_KEY: ${{ secrets.GROQ_API_KEY }}
