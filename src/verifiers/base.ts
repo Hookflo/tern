@@ -1,5 +1,5 @@
-import { timingSafeEqual } from "crypto";
-import { WebhookVerificationResult } from "../types";
+import { timingSafeEqual } from 'crypto';
+import { WebhookVerificationResult } from '../types';
 
 export abstract class WebhookVerifier {
   protected secret: string;

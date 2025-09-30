@@ -1,4 +1,13 @@
-import { BaseTemplate, CreateSchemaInput, NormalizedResult, ProviderInfo, TemplateCategory, TransformParams, UpdateSchemaInput, UserSchema } from './types';
+import {
+  BaseTemplate,
+  CreateSchemaInput,
+  NormalizedResult,
+  ProviderInfo,
+  TemplateCategory,
+  TransformParams,
+  UpdateSchemaInput,
+  UserSchema,
+} from './types';
 import { providerRegistry } from './providers/registry';
 import { templateRegistry } from './templates/registry';
 import { StorageAdapter } from './storage/interface';
@@ -9,7 +18,9 @@ import { SchemaValidator } from './transformer/validator';
 export class Normalizer {
   private engine: NormalizationEngine;
 
-  constructor(private readonly storage: StorageAdapter = new InMemoryStorageAdapter()) {
+  constructor(
+    private readonly storage: StorageAdapter = new InMemoryStorageAdapter(),
+  ) {
     this.engine = new NormalizationEngine(storage, new SchemaValidator());
   }
 
@@ -36,7 +47,10 @@ export class Normalizer {
     return schema;
   }
 
-  async updateSchema(schemaId: string, updates: UpdateSchemaInput): Promise<void> {
+  async updateSchema(
+    schemaId: string,
+    updates: UpdateSchemaInput,
+  ): Promise<void> {
     await this.storage.updateSchema(schemaId, updates);
   }
 
@@ -48,9 +62,17 @@ export class Normalizer {
     return this.engine.transform(params);
   }
 
-  async validateSchema(schema: UserSchema): Promise<{ valid: boolean; errors: string[] }> {
-    const base = await this.storage.getBaseTemplate(schema.baseTemplateId) ?? templateRegistry.getById(schema.baseTemplateId);
-    if (!base) return { valid: false, errors: [`Base template not found: ${schema.baseTemplateId}`] };
+  async validateSchema(
+    schema: UserSchema,
+  ): Promise<{ valid: boolean; errors: string[] }> {
+    const base = (await this.storage.getBaseTemplate(schema.baseTemplateId))
+      ?? templateRegistry.getById(schema.baseTemplateId);
+    if (!base) {
+      return {
+        valid: false,
+        errors: [`Base template not found: ${schema.baseTemplateId}`],
+      };
+    }
     const validator = new SchemaValidator();
     return validator.validateSchema(schema, base);
   }
@@ -58,11 +80,11 @@ export class Normalizer {
 
 function generateId(): string {
   // Simple non-crypto unique ID generator for framework default
-  return 'sch_' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+  return (
+    `sch_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`
+  );
 }
 
 export * from './types';
 export * from './storage/interface';
 export { InMemoryStorageAdapter } from './storage/memory';
-
-

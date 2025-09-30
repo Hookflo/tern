@@ -9,5 +9,3 @@ export const paypalDefaultMapping: ProviderMapping = {
     { schemaFieldId: 'transaction_id', providerPath: 'resource.id' },
   ],
 };
-
-

@@ -10,5 +10,3 @@ export const stripeDefaultMapping: ProviderMapping = {
     { schemaFieldId: 'customer_id', providerPath: 'data.object.customer' },
   ],
 };
-
-

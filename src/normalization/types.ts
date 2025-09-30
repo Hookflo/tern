@@ -90,5 +90,3 @@ export interface TransformParams {
   provider: string;
   schemaId: string;
 }
-
-

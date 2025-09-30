@@ -20,5 +20,3 @@ export const templateRegistry = {
     return Object.values(templates);
   },
 };
-
-
