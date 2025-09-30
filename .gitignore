@@ -4,11 +4,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Build output
+# Build outputs
 dist/
 build/
-
-# TypeScript
 *.tsbuildinfo
 
 # Environment variables
@@ -18,14 +16,20 @@ build/
 .env.test.local
 .env.production.local
 
-# IDE
+# IDE and editor files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# OS
+# OS generated files
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
 
 # Logs
@@ -73,23 +77,32 @@ jspm_packages/
 .cache
 .parcel-cache
 
-# next.js build output
+# Next.js build output
 .next
 
-# nuxt.js build output
+# Nuxt.js build / generate output
 .nuxt
 
-# vuepress build output
-.vuepress/dist
+# Storybook build outputs
+.out
+.storybook-out
 
-# Serverless directories
-.serverless
+# Temporary folders
+tmp/
+temp/
 
-# FuseBox cache
-.fusebox/
+# Generated documentation and analysis files
+docs/
+diffs/
+reports/
 
-# DynamoDB Local files
-.dynamodb/
+# Test artifacts
+test-results/
+coverage/
 
-# TernJS port file
-.tern-port 
+# Platform-specific test outputs
+*.test.js
+*.test.d.ts
+
+# Documentation cache
+.cache/ 

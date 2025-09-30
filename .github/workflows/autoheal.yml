@@ -6,7 +6,7 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  run:
+  autoheal:
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -26,12 +26,16 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Autoheal
+      - name: Run Autoheal
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           COHERE_API_KEY: ${{ secrets.COHERE_API_KEY }}
-        run: npm run autoheal
+        run: |
+          echo "Running autoheal system..."
+          npm run autoheal
+
+
 
 

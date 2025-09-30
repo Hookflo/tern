@@ -90,7 +90,7 @@ export async function createIssueOnBreakingChange(args: {
     repo,
     title,
     body,
-    assignees: ['copilot-swe-agent'],
+    assignees: ['fix-auto'],
     labels: ['autoheal'],
   });
 }

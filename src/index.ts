@@ -7,6 +7,7 @@ import {
 import { createAlgorithmVerifier } from './verifiers/algorithms';
 import { createCustomVerifier } from './verifiers/custom-algorithms';
 import { getPlatformAlgorithmConfig } from './platforms/algorithms';
+import { platformManager, PlatformName } from './platforms/manager';
 
 export class WebhookVerificationService {
   static async verify(
@@ -72,6 +73,12 @@ export class WebhookVerificationService {
     secret: string,
     toleranceInSeconds: number = 300,
   ): Promise<WebhookVerificationResult> {
+    // Try to use the new platform manager first
+    if (platformManager.isPlatformSupported(platform as PlatformName)) {
+      return platformManager.verify(request, platform as PlatformName, secret);
+    }
+
+    // Fallback to legacy method
     const platformConfig = getPlatformAlgorithmConfig(platform);
     const config: WebhookConfig = {
       platform,
@@ -163,5 +170,8 @@ export {
 } from './platforms/algorithms';
 export { createAlgorithmVerifier } from './verifiers/algorithms';
 export { createCustomVerifier } from './verifiers/custom-algorithms';
+export { platformManager } from './platforms/manager';
 
 export default WebhookVerificationService;
+
+export { Normalizer } from './normalization';

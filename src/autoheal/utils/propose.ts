@@ -19,16 +19,32 @@ export async function proposeCodeEdits(
   impact: ImpactClassification
 ): Promise<ProposedEdit[]> {
   const root = getRepoRoot();
-  const targetFile = path.join(root, "src", "platforms", "algorithms.ts");
-  const currentFile = await fs.readFile(targetFile, "utf8");
+  const platformConfigFile = path.join(root, "src", "platforms", diff.platform, "config.ts");
+  
+  // Check if platform-specific config exists
+  let currentFile: string;
+  try {
+    currentFile = await fs.readFile(platformConfigFile, "utf8");
+  } catch (error) {
+    // If platform-specific config doesn't exist, fall back to algorithms.ts
+    const algorithmsFile = path.join(root, "src", "platforms", "algorithms.ts");
+    currentFile = await fs.readFile(algorithmsFile, "utf8");
+  }
 
   const unified = buildUnifiedDiff(diff.oldContent || "", diff.newContent);
-  const prompt = `You are an expert TypeScript engineer maintaining a webhook verification config map at src/platforms/algorithms.ts.
+  
+  // Determine target file and prompt based on platform structure
+  const isNewStructure = diff.platform === 'stripe' || diff.platform === 'github' || 
+                        diff.platform === 'clerk' || diff.platform === 'dodopayments';
+  
+  if (isNewStructure) {
+    const prompt = `You are an expert TypeScript engineer maintaining a webhook verification platform config at src/platforms/${diff.platform}/config.ts.
 Platform: ${diff.platform}
 URL: ${diff.url}
 
-Based on the annotated doc diff below, propose a minimal, correct edit to that file only.
-Provide a unified diff (git style) with exact context from the current file content below. Do not invent unrelated changes. Only modify the relevant platform's SignatureConfig.
+Based on the annotated doc diff below, propose a minimal, correct edit to the platform's config file.
+Focus on updating the getSignatureConfig() method and getTestCases() method if needed.
+Provide a unified diff (git style) with exact context from the current file content below.
 
 Current file content:\n${currentFile.slice(0, 8000)}
 
@@ -36,13 +52,41 @@ Annotated doc diff with unchanged context lines and directives [updated]/[delete
 
 Output strictly as unified diff starting with --- and +++ lines.`;
 
-  const { text } = await runWithFailover(prompt);
+    const { text } = await runWithFailover(prompt);
 
-  return [
-    {
-      filePath: "src/platforms/algorithms.ts",
-      description: `Update ${diff.platform} signature config based on docs changes`,
-      diff: text,
-    },
-  ];
+    return [
+      {
+        filePath: `src/platforms/${diff.platform}/config.ts`,
+        description: `Update ${diff.platform} platform config based on docs changes`,
+        diff: text,
+      },
+    ];
+  } else {
+    // Fallback to old structure for platforms not yet migrated
+    const algorithmsFile = path.join(root, "src", "platforms", "algorithms.ts");
+    const algorithmsContent = await fs.readFile(algorithmsFile, "utf8");
+    
+    const prompt = `You are an expert TypeScript engineer maintaining a webhook verification config map at src/platforms/algorithms.ts.
+Platform: ${diff.platform}
+URL: ${diff.url}
+
+Based on the annotated doc diff below, propose a minimal, correct edit to that file only.
+Provide a unified diff (git style) with exact context from the current file content below. Do not invent unrelated changes. Only modify the relevant platform's SignatureConfig.
+
+Current file content:\n${algorithmsContent.slice(0, 8000)}
+
+Annotated doc diff with unchanged context lines and directives [updated]/[deleted]/[added]:\n${unified}
+
+Output strictly as unified diff starting with --- and +++ lines.`;
+
+    const { text } = await runWithFailover(prompt);
+
+    return [
+      {
+        filePath: "src/platforms/algorithms.ts",
+        description: `Update ${diff.platform} signature config based on docs changes`,
+        diff: text,
+      },
+    ];
+  }
 }
