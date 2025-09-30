@@ -46,20 +46,38 @@ npm install @hookflo/tern
 ### Basic Usage
 
 ```typescript
-import { WebhookVerificationService } from '@hookflo/tern';
+import { WebhookVerificationService, platformManager } from '@hookflo/tern';
 
-// Verify a Stripe webhook
+// Method 1: Using the service (recommended)
 const result = await WebhookVerificationService.verifyWithPlatformConfig(
   request,
   'stripe',
   'whsec_your_stripe_webhook_secret'
 );
 
+// Method 2: Using platform manager (for platform-specific operations)
+const stripeResult = await platformManager.verify(request, 'stripe', 'whsec_your_secret');
+
 if (result.isValid) {
   console.log('Webhook verified!', result.payload);
 } else {
   console.log('Verification failed:', result.error);
 }
+```
+
+### Platform-Specific Usage
+
+```typescript
+import { platformManager } from '@hookflo/tern';
+
+// Run tests for a specific platform
+const testsPassed = await platformManager.runPlatformTests('stripe');
+
+// Get platform configuration
+const config = platformManager.getConfig('stripe');
+
+// Get platform documentation
+const docs = platformManager.getDocumentation('stripe');
 ```
 
 ### Platform-Specific Configurations
@@ -336,10 +354,33 @@ interface WebhookConfig {
 
 ## Testing
 
-Run the test suite:
+### Run All Tests
 
 ```bash
 npm test
+```
+
+### Platform-Specific Testing
+
+```bash
+# Test a specific platform
+npm run test:platform stripe
+
+# Test all platforms
+npm run test:all
+```
+
+### Documentation and Analysis
+
+```bash
+# Fetch platform documentation
+npm run docs:fetch
+
+# Generate diffs between versions
+npm run docs:diff
+
+# Analyze changes and generate reports
+npm run docs:analyze
 ```
 
 ## Examples
@@ -348,11 +389,30 @@ See the [examples.ts](./src/examples.ts) file for comprehensive usage examples.
 
 ## Contributing
 
+We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on how to:
+
+- Set up your development environment
+- Add new platforms
+- Write tests
+- Submit pull requests
+- Follow our code style guidelines
+
+### Quick Start for Contributors
+
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new functionality
-5. Submit a pull request
+2. Clone your fork: `git clone https://github.com/your-username/tern.git`
+3. Create a feature branch: `git checkout -b feature/your-feature-name`
+4. Make your changes
+5. Run tests: `npm test`
+6. Submit a pull request
+
+### Adding a New Platform
+
+See our [Platform Development Guide](CONTRIBUTING.md#adding-new-platforms) for step-by-step instructions on adding support for new webhook platforms.
+
+## Code of Conduct
+
+This project adheres to our [Code of Conduct](CODE_OF_CONDUCT.md). Please read it before contributing.
 
 ## 📄 License
 
