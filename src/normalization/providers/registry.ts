@@ -20,5 +20,3 @@ export const providerRegistry = {
     return providers.find((p) => p.id === id);
   },
 };
-
-

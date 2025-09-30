@@ -80,5 +80,3 @@ export class NormalizationEngine {
     return value;
   }
 }
-
-

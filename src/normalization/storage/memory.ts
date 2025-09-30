@@ -1,4 +1,6 @@
-import { BaseTemplate, CreateSchemaInput, UpdateSchemaInput, UserSchema } from '../types';
+import {
+  BaseTemplate, CreateSchemaInput, UpdateSchemaInput, UserSchema,
+} from '../types';
 import { StorageAdapter } from './interface';
 import { templateRegistry } from '../templates/registry';
 
@@ -40,5 +42,3 @@ export class InMemoryStorageAdapter implements StorageAdapter {
     return templateRegistry.listAll();
   }
 }
-
-

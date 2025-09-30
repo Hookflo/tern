@@ -10,5 +10,3 @@ export const razorpayDefaultMapping: ProviderMapping = {
     { schemaFieldId: 'customer_id', providerPath: 'payload.payment.entity.contact' },
   ],
 };
-
-

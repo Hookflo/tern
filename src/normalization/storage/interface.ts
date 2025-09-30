@@ -1,4 +1,6 @@
-import { BaseTemplate, CreateSchemaInput, UpdateSchemaInput, UserSchema } from '../types';
+import {
+  BaseTemplate, CreateSchemaInput, UpdateSchemaInput, UserSchema,
+} from '../types';
 
 export interface StorageAdapter {
   saveSchema(schema: UserSchema): Promise<void>;
@@ -14,5 +16,3 @@ export interface StorageAdapter {
 export interface NormalizationStorageOptions {
   adapter: StorageAdapter;
 }
-
-
