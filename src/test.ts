@@ -258,7 +258,47 @@ async function runTests() {
   }
 
   console.log('\n🎉 All tests completed!');
+
+
+
+
+  // --- Vercel Webhook Test --- (inside runTests(), after Test 7)
+console.log('\n8. Testing Vercel Webhook...');
+try {
+  const timestamp = Math.floor(Date.now() / 1000);
+
+  // Create Vercel HMAC signature
+  const hmac = createHmac('sha1', testSecret);
+  hmac.update(testBody);
+  const vercelSignature = hmac.digest('hex');
+
+  const vercelRequest = createMockRequest({
+    'x-vercel-signature': vercelSignature,
+    'x-vercel-timestamp': timestamp.toString(),
+    'content-type': 'application/json',
+  });
+
+  const vercelResult = await WebhookVerificationService.verifyWithPlatformConfig(
+    vercelRequest,
+    'vercel',
+    testSecret
+  );
+
+  console.log('   ✅ Vercel:', vercelResult.isValid ? 'PASSED' : 'FAILED');
+  if (!vercelResult.isValid) {
+    console.log('   ❌ Error:', vercelResult.error);
+  }
+} catch (error) {
+  console.log('   ❌ Vercel test failed:', error);
 }
+
+}
+
+
+
+
+
+
 
 // Run tests if this file is executed directly
 if (require.main === module) {

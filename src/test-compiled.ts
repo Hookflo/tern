@@ -1,3 +1,5 @@
 import { runTests } from './test';
 
-runTests();
+runTests().catch((err) => {
+  console.error('❌ runTests() failed:', err);
+});

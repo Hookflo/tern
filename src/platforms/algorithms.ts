@@ -84,13 +84,13 @@ export const platformAlgorithmConfigs: Record<
       timestampHeader: 'x-shopify-shop-domain',
       payloadFormat: 'raw',
     },
-    description: 'Shopify webhooks use HMAC-SHA256',
+    description: 'Shopify webhooks use HMAC-SHA1',
   },
 
   vercel: {
     platform: 'vercel',
     signatureConfig: {
-      algorithm: 'hmac-sha256',
+      algorithm: 'hmac-sha1',
       headerName: 'x-vercel-signature',
       headerFormat: 'raw',
       timestampHeader: 'x-vercel-timestamp',
