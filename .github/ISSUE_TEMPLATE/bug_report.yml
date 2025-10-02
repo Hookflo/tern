@@ -1,0 +1,62 @@
+name: Bug report
+description: Report a problem to help us improve
+labels: [bug]
+title: "bug: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before submitting
+      options:
+        - label: I've searched existing issues
+          required: true
+        - label: I've read the README and USAGE docs
+          required: true
+  - type: input
+    id: version
+    attributes:
+      label: Tern version
+      description: Output of `npm ls @hookflo/tern` or package.json version
+      placeholder: e.g., 1.2.3
+  - type: textarea
+    id: env
+    attributes:
+      label: Environment
+      description: Node version, framework (Express/Next/Cloudflare), OS
+      placeholder: Node 18, Next.js 14, macOS 14
+  - type: textarea
+    id: desc
+    attributes:
+      label: Describe the bug
+      description: A clear and concise description of what the bug is
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal reproduction (headers/body/signature config); redactions are okay
+      placeholder: |
+        1. Configure platform ...
+        2. Send request ...
+        3. See error ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs and output
+      placeholder: Relevant logs/errors (no secrets)
+      render: shell
+  - type: textarea
+    id: extra
+    attributes:
+      label: Additional context

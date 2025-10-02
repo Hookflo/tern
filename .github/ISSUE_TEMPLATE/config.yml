@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Questions and Support
+    url: https://github.com/Hookflo/tern/discussions
+    about: Ask questions or get help in Discussions
+  - name: Security Reports
+    url: https://github.com/Hookflo/tern/security/policy
+    about: Please do not file public issues for security vulnerabilities
