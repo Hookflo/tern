@@ -128,6 +128,21 @@ export const platformAlgorithmConfigs: Record<
     description: 'Supabase webhooks use token-based authentication',
   },
 
+  gitlab: {
+    platform: 'gitlab',
+    signatureConfig: {
+      algorithm: 'custom',
+      headerName: 'X-Gitlab-Token',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
+      customConfig: {
+        type: 'token-based',
+        idHeader: 'X-Gitlab-Token',
+      },
+    },
+    description: 'GitLab webhooks use HMAC-SHA256 with X-Gitlab-Token header',
+  },
+
   custom: {
     platform: 'custom',
     signatureConfig: {

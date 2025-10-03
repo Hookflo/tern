@@ -29,6 +29,11 @@ function createGitHubSignature(body: string, secret: string): string {
   return `sha256=${hmac.digest('hex')}`;
 }
 
+function createGitLabSignature(body: string, secret: string): string {
+  // GitLab just compares the token in X-Gitlab-Token header
+  return secret;
+}
+
 function createClerkSignature(body: string, secret: string, id: string, timestamp: number): string {
   const signedContent = `${id}.${timestamp}.${body}`;
   const secretBytes = new Uint8Array(Buffer.from(secret.split('_')[1], 'base64'));
@@ -256,6 +261,52 @@ async function runTests() {
   } catch (error) {
     console.log('   ❌ Missing headers test failed:', error);
   }
+
+  // Test 8: GitLab Webhook
+console.log('\n8. Testing GitLab Webhook...');
+try {
+  const gitlabSecret = testSecret;
+
+  const gitlabRequest = createMockRequest({
+    'X-Gitlab-Token': gitlabSecret,
+    'content-type': 'application/json',
+  });
+
+  const gitlabResult = await WebhookVerificationService.verifyWithPlatformConfig(
+    gitlabRequest,
+    'gitlab',
+    gitlabSecret,
+  );
+
+  console.log('   ✅ GitLab:', gitlabResult.isValid ? 'PASSED' : 'FAILED');
+  if (!gitlabResult.isValid) {
+    console.log('   ❌ Error:', gitlabResult.error);
+  }
+} catch (error) {
+  console.log('   ❌ GitLab test failed:', error);
+}
+
+// Test 9: GitLab Invalid Token
+console.log('\n9. Testing GitLab Invalid Token...');
+try {
+  const gitlabRequest = createMockRequest({
+    'X-Gitlab-Token': 'wrong_secret',
+    'content-type': 'application/json',
+  });
+
+  const gitlabResult = await WebhookVerificationService.verifyWithPlatformConfig(
+    gitlabRequest,
+    'gitlab',
+    testSecret,
+  );
+
+  console.log(
+    '   ✅ Invalid token correctly rejected:',
+    !gitlabResult.isValid ? 'PASSED' : 'FAILED'
+  );
+} catch (error) {
+  console.log('   ❌ GitLab invalid token test failed:', error);
+}
 
   console.log('\n🎉 All tests completed!');
 }
