@@ -136,7 +136,7 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 - **Vercel**: HMAC-SHA256
 - **Polar**: HMAC-SHA256
 - **Supabase**: Token-based authentication
-- **GitLab**: Token-based authentication
+- **GitLab**: Token-based authentication 
 
 ## Custom Platform Configuration
 
