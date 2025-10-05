@@ -8,6 +8,7 @@ export type WebhookPlatform =
   | 'vercel'
   | 'polar'
   | 'dodopayments'
+  | 'gitlab'
   | 'unknown';
 
 export enum WebhookPlatformKeys {
@@ -19,6 +20,7 @@ export enum WebhookPlatformKeys {
   Vercel = 'vercel',
   Polar = 'polar',
   Supabase = 'supabase',
+  GitLab = 'gitlab',
   Custom ='custom',
   Unknown = 'unknown'
 }
