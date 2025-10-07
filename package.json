@@ -15,7 +15,7 @@
     "release:patch": "npm run build && npm version patch && npm publish",
     "release:minor": "npm run build && npm version minor && npm publish",
     "release:major": "npm run build && npm version major && npm publish",
-    "clean": "rm -rf dist",
+    "clean": "rimraf dist",
     "prebuild": "npm run clean"
   },
   "keywords": [
@@ -55,6 +55,7 @@
     "eslint-plugin-import": "^2.32.0",
     "jest": "29.5.0",
     "prettier": "3.0.0",
+    "rimraf": "^6.0.1",
     "ts-jest": "29.1.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.0.0"
