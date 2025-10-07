@@ -1,9 +1,9 @@
 name: Autoheal Webhook Configs
 
 on:
-  schedule:
-    - cron: '0 3,15 * * *'
-  workflow_dispatch: {}
+  # schedule:
+  #   - cron: '0 3,15 * * *'
+  workflow_dispatch:
 
 jobs:
   run:
