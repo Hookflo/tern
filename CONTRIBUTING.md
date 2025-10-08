@@ -6,7 +6,7 @@ Please read and follow our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Getting Started
 
-- Node.js >= 18
+- Node.js >= 22 or 20
 - pnpm or npm
 
 ```bash
