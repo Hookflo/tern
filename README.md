@@ -3,7 +3,7 @@
 A robust, algorithm-agnostic webhook verification framework that supports multiple platforms with accurate signature verification and payload retrieval.
 The same framework that secures webhook verification at [Hookflo](https://hookflo.com).
 
-⭐ Star this repo if you like it!  
+⭐ Star this repo to support the project and help others discover it!  
 
 💬 Join the discussion & contribute in our Discord: [Hookflo Community](https://discord.com/invite/SNmCjU97nr)
 
