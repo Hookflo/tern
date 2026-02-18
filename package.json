@@ -73,20 +73,45 @@
   },
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "require": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./express": {
+      "types": "./dist/express.d.ts",
       "require": "./dist/express.js",
-      "types": "./dist/express.d.ts"
+      "import": "./dist/express.js",
+      "default": "./dist/express.js"
     },
     "./nextjs": {
+      "types": "./dist/nextjs.d.ts",
       "require": "./dist/nextjs.js",
-      "types": "./dist/nextjs.d.ts"
+      "import": "./dist/nextjs.js",
+      "default": "./dist/nextjs.js"
     },
     "./cloudflare": {
+      "types": "./dist/cloudflare.d.ts",
       "require": "./dist/cloudflare.js",
-      "types": "./dist/cloudflare.d.ts"
+      "import": "./dist/cloudflare.js",
+      "default": "./dist/cloudflare.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "express": [
+        "dist/express.d.ts"
+      ],
+      "nextjs": [
+        "dist/nextjs.d.ts"
+      ],
+      "cloudflare": [
+        "dist/cloudflare.d.ts"
+      ],
+      "*": [
+        "dist/index.d.ts"
+      ]
     }
   }
 }

@@ -496,3 +496,53 @@ MIT License - see [LICENSE](./LICENSE) for details.
 - [Framework Summary](./FRAMEWORK_SUMMARY.md)
 - [Architecture Guide](./ARCHITECTURE.md)
 - [Issues](https://github.com/Hookflo/tern/issues)
+
+
+## Troubleshooting
+
+### `Module not found: Can't resolve "@hookflo/tern/nextjs"`
+
+If this happens in a Next.js project, it usually means one of these:
+
+1. You installed an older published package version that does not include subpath exports yet.
+2. Lockfile still points to an old tarball/version.
+3. `node_modules` cache is stale after upgrading.
+
+Fix steps:
+
+```bash
+# in your Next.js app
+npm i @hookflo/tern@latest
+rm -rf node_modules package-lock.json .next
+npm i
+```
+
+Then verify resolution:
+
+```bash
+node -e "console.log(require.resolve('@hookflo/tern/nextjs'))"
+```
+
+If you are testing this repo locally before publish:
+
+```bash
+# inside /workspace/tern
+npm run build
+npm pack
+
+# inside your other project
+npm i /path/to/hookflo-tern-<version>.tgz
+```
+
+Minimal Next.js App Router usage:
+
+```ts
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  handler: async (payload) => ({ received: true, event: payload.event ?? payload.type }),
+});
+```
+
