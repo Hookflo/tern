@@ -1,6 +1,6 @@
 {
   "name": "@hookflo/tern",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "A robust, scalable webhook verification framework supporting multiple platforms and signature algorithms",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -70,5 +70,48 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "require": "./dist/index.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./express": {
+      "types": "./dist/express.d.ts",
+      "require": "./dist/express.js",
+      "import": "./dist/express.js",
+      "default": "./dist/express.js"
+    },
+    "./nextjs": {
+      "types": "./dist/nextjs.d.ts",
+      "require": "./dist/nextjs.js",
+      "import": "./dist/nextjs.js",
+      "default": "./dist/nextjs.js"
+    },
+    "./cloudflare": {
+      "types": "./dist/cloudflare.d.ts",
+      "require": "./dist/cloudflare.js",
+      "import": "./dist/cloudflare.js",
+      "default": "./dist/cloudflare.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "express": [
+        "dist/express.d.ts"
+      ],
+      "nextjs": [
+        "dist/nextjs.d.ts"
+      ],
+      "cloudflare": [
+        "dist/cloudflare.d.ts"
+      ],
+      "*": [
+        "dist/index.d.ts"
+      ]
+    }
   }
 }

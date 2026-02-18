@@ -1,0 +1,37 @@
+import { WebhookPlatform, NormalizeOptions } from '../types';
+import { WebhookVerificationService } from '../index';
+
+export interface NextWebhookHandlerOptions<TResponse = unknown> {
+  platform: WebhookPlatform;
+  secret: string;
+  toleranceInSeconds?: number;
+  normalize?: boolean | NormalizeOptions;
+  onError?: (error: Error) => void;
+  handler: (payload: any, metadata: Record<string, any>) => Promise<TResponse> | TResponse;
+}
+
+export function createWebhookHandler<TResponse = unknown>(
+  options: NextWebhookHandlerOptions<TResponse>,
+) {
+  return async (request: Request): Promise<Response> => {
+    try {
+      const result = await WebhookVerificationService.verifyWithPlatformConfig(
+        request,
+        options.platform,
+        options.secret,
+        options.toleranceInSeconds,
+        options.normalize,
+      );
+
+      if (!result.isValid) {
+        return Response.json({ error: result.error, platform: result.platform }, { status: 400 });
+      }
+
+      const data = await options.handler(result.payload, result.metadata || {});
+      return Response.json(data);
+    } catch (error) {
+      options.onError?.(error as Error);
+      return Response.json({ error: (error as Error).message }, { status: 500 });
+    }
+  };
+}
