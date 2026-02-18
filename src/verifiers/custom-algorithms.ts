@@ -25,6 +25,7 @@ export class TokenBasedVerifier extends WebhookVerifier {
         return {
           isValid: false,
           error: `Missing token header: ${this.config.headerName}`,
+          errorCode: 'MISSING_TOKEN',
           platform: 'custom',
         };
       }
@@ -36,6 +37,7 @@ export class TokenBasedVerifier extends WebhookVerifier {
         return {
           isValid: false,
           error: 'Invalid token',
+          errorCode: 'INVALID_TOKEN',
           platform: 'custom',
         };
       }
@@ -61,6 +63,7 @@ export class TokenBasedVerifier extends WebhookVerifier {
       return {
         isValid: false,
         error: `Token-based verification error: ${(error as Error).message}`,
+        errorCode: 'VERIFICATION_ERROR',
         platform: 'custom',
       };
     }

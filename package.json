@@ -70,5 +70,23 @@
   ],
   "publishConfig": {
     "access": "public"
+  },
+  "exports": {
+    ".": {
+      "require": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./express": {
+      "require": "./dist/express.js",
+      "types": "./dist/express.d.ts"
+    },
+    "./nextjs": {
+      "require": "./dist/nextjs.js",
+      "types": "./dist/nextjs.d.ts"
+    },
+    "./cloudflare": {
+      "require": "./dist/cloudflare.js",
+      "types": "./dist/cloudflare.d.ts"
+    }
   }
 }

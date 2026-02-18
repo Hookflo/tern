@@ -28,6 +28,12 @@ Supports HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, and custom algorithms
 - **Flexible Configuration**: Custom signature configurations for any webhook format
 - **Type Safe**: Full TypeScript support with comprehensive type definitions
 - **Framework Agnostic**: Works with Express.js, Next.js, Cloudflare Workers, and more
+- **Body-Parser Safe Adapters**: Read raw request bodies correctly to avoid signature mismatch issues
+- **Multi-Provider Verification**: Verify and auto-detect across multiple providers with one API
+- **Payload Normalization**: Opt-in normalized event shape to reduce provider lock-in
+- **Category-aware Migration**: Normalize within provider categories (payment/auth/infrastructure) for safe platform switching
+- **Strong Typed Normalized Schemas**: Category types like `PaymentWebhookNormalized` and `AuthWebhookNormalized` for safe migrations
+- **Foundational Error Taxonomy**: Stable `errorCode` values (`INVALID_SIGNATURE`, `MISSING_SIGNATURE`, etc.)
 
 ## Why Tern?
 
@@ -67,6 +73,78 @@ if (result.isValid) {
 } else {
   console.log('Verification failed:', result.error);
 }
+```
+
+### Universal Verification (auto-detect platform)
+
+```typescript
+import { WebhookVerificationService } from '@hookflo/tern';
+
+const result = await WebhookVerificationService.verifyAny(request, {
+  stripe: process.env.STRIPE_WEBHOOK_SECRET,
+  github: process.env.GITHUB_WEBHOOK_SECRET,
+  clerk: process.env.CLERK_WEBHOOK_SECRET,
+});
+
+if (result.isValid) {
+  console.log(`Verified ${result.platform} webhook`);
+}
+```
+
+### Category-aware Payload Normalization
+
+### Strongly-Typed Normalized Payloads
+
+```typescript
+import {
+  WebhookVerificationService,
+  PaymentWebhookNormalized,
+} from '@hookflo/tern';
+
+const result = await WebhookVerificationService.verifyWithPlatformConfig<PaymentWebhookNormalized>(
+  request,
+  'stripe',
+  process.env.STRIPE_WEBHOOK_SECRET!,
+  300,
+  { enabled: true, category: 'payment' },
+);
+
+if (result.isValid && result.payload?.event === 'payment.succeeded') {
+  // result.payload is strongly typed
+  console.log(result.payload.amount, result.payload.customer_id);
+}
+```
+
+```typescript
+import { WebhookVerificationService, getPlatformsByCategory } from '@hookflo/tern';
+
+// Discover migration-compatible providers in the same category
+const paymentPlatforms = getPlatformsByCategory('payment');
+// ['stripe', 'polar', ...]
+
+const result = await WebhookVerificationService.verifyWithPlatformConfig(
+  request,
+  'stripe',
+  process.env.STRIPE_WEBHOOK_SECRET!,
+  300,
+  {
+    enabled: true,
+    category: 'payment',
+    includeRaw: true,
+  },
+);
+
+console.log(result.payload);
+// {
+//   event: 'payment.succeeded',
+//   amount: 5000,
+//   currency: 'USD',
+//   customer_id: 'cus_123',
+//   transaction_id: 'pi_123',
+//   provider: 'stripe',
+//   category: 'payment',
+//   _raw: {...}
+// }
 ```
 
 ### Platform-Specific Usage
@@ -236,80 +314,59 @@ const timestampedConfig = {
 
 ## Framework Integration
 
-### Express.js
+### Express.js middleware (body-parser safe)
 
 ```typescript
-app.post('/webhooks/stripe', async (req, res) => {
-  const result = await WebhookVerificationService.verifyWithPlatformConfig(
-    req,
-    'stripe',
-    process.env.STRIPE_WEBHOOK_SECRET
-  );
+import express from 'express';
+import { createWebhookMiddleware } from '@hookflo/tern/express';
 
-  if (!result.isValid) {
-    return res.status(400).json({ error: result.error });
-  }
+const app = express();
 
-  // Process the webhook
-  console.log('Stripe event:', result.payload.type);
-  res.json({ received: true });
-});
+app.post(
+  '/webhooks/stripe',
+  createWebhookMiddleware({
+    platform: 'stripe',
+    secret: process.env.STRIPE_WEBHOOK_SECRET!,
+    normalize: true,
+  }),
+  (req, res) => {
+    const event = (req as any).webhook.payload;
+    res.json({ received: true, event: event.event });
+  },
+);
 ```
 
-### Next.js API Route
+### Next.js App Router
 
 ```typescript
-// pages/api/webhooks/github.js
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
 
-  const result = await WebhookVerificationService.verifyWithPlatformConfig(
-    req,
-    'github',
-    process.env.GITHUB_WEBHOOK_SECRET
-  );
-
-  if (!result.isValid) {
-    return res.status(400).json({ error: result.error });
-  }
-
-  // Handle GitHub webhook
-  const event = req.headers['x-github-event'];
-  console.log('GitHub event:', event);
-  
-  res.json({ received: true });
-}
+export const POST = createWebhookHandler({
+  platform: 'github',
+  secret: process.env.GITHUB_WEBHOOK_SECRET!,
+  handler: async (payload) => ({ received: true, event: payload.event ?? payload.type }),
+});
 ```
 
 ### Cloudflare Workers
 
 ```typescript
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request));
+import { createWebhookHandler } from '@hookflo/tern/cloudflare';
+
+const handleStripe = createWebhookHandler({
+  platform: 'stripe',
+  secretEnv: 'STRIPE_WEBHOOK_SECRET',
+  handler: async (payload) => ({ received: true, event: payload.event ?? payload.type }),
 });
 
-async function handleRequest(request) {
-  if (request.url.includes('/webhooks/clerk')) {
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(
-      request,
-      'clerk',
-      CLERK_WEBHOOK_SECRET
-    );
-
-    if (!result.isValid) {
-      return new Response(JSON.stringify({ error: result.error }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' }
-      });
+export default {
+  async fetch(request: Request, env: Record<string, string>) {
+    if (new URL(request.url).pathname === '/webhooks/stripe') {
+      return handleStripe(request, env);
     }
-
-    // Process Clerk webhook
-    console.log('Clerk event:', result.payload.type);
-    return new Response(JSON.stringify({ received: true }));
-  }
-}
+    return new Response('Not Found', { status: 404 });
+  },
+};
 ```
 
 ## API Reference
@@ -320,13 +377,21 @@ async function handleRequest(request) {
 
 Verifies a webhook using the provided configuration.
 
-#### `verifyWithPlatformConfig(request: Request, platform: WebhookPlatform, secret: string, toleranceInSeconds?: number): Promise<WebhookVerificationResult>`
+#### `verifyWithPlatformConfig(request: Request, platform: WebhookPlatform, secret: string, toleranceInSeconds?: number, normalize?: boolean | NormalizeOptions): Promise<WebhookVerificationResult>`
 
-Simplified verification using platform-specific configurations.
+Simplified verification using platform-specific configurations with optional payload normalization.
+
+#### `verifyAny(request: Request, secrets: Record<string, string>, toleranceInSeconds?: number, normalize?: boolean | NormalizeOptions): Promise<WebhookVerificationResult>`
+
+Auto-detects platform from headers and verifies against one or more provider secrets.
 
 #### `verifyTokenBased(request: Request, webhookId: string, webhookToken: string): Promise<WebhookVerificationResult>`
 
 Verifies token-based webhooks (like Supabase).
+
+#### `getPlatformsByCategory(category: 'payment' | 'auth' | 'ecommerce' | 'infrastructure'): WebhookPlatform[]`
+
+Returns built-in providers that normalize into a shared schema for the given migration category.
 
 ### Types
 
@@ -336,6 +401,7 @@ Verifies token-based webhooks (like Supabase).
 interface WebhookVerificationResult {
   isValid: boolean;
   error?: string;
+  errorCode?: WebhookErrorCode;
   platform: WebhookPlatform;
   payload?: any;
   metadata?: {
@@ -354,6 +420,7 @@ interface WebhookConfig {
   secret: string;
   toleranceInSeconds?: number;
   signatureConfig?: SignatureConfig;
+  normalize?: boolean | NormalizeOptions;
 }
 ```
 

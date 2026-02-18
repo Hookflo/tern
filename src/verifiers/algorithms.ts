@@ -239,6 +239,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         return {
           isValid: false,
           error: `Missing signature header: ${this.config.headerName}`,
+          errorCode: 'MISSING_SIGNATURE',
           platform: this.platform,
         };
       }
@@ -260,6 +261,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         return {
           isValid: false,
           error: 'Webhook timestamp expired',
+          errorCode: 'TIMESTAMP_EXPIRED',
           platform: this.platform,
         };
       }
@@ -286,6 +288,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         return {
           isValid: false,
           error: 'Invalid signature',
+          errorCode: 'INVALID_SIGNATURE',
           platform: this.platform,
         };
       }
@@ -313,6 +316,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         error: `${this.platform} verification error: ${
           (error as Error).message
         }`,
+        errorCode: 'VERIFICATION_ERROR',
         platform: this.platform,
       };
     }

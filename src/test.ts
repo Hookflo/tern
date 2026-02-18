@@ -1,5 +1,5 @@
 import { createHmac } from 'crypto';
-import { WebhookVerificationService } from './index';
+import { WebhookVerificationService, getPlatformsByCategory } from './index';
 
 const testSecret = 'whsec_test_secret_key_12345';
 const testBody = JSON.stringify({ event: 'test', data: { id: '123' } });
@@ -33,6 +33,7 @@ function createGitLabSignature(body: string, secret: string): string {
   // GitLab just compares the token in X-Gitlab-Token header
   return secret;
 }
+
 
 function createClerkSignature(body: string, secret: string, id: string, timestamp: number): string {
   const signedContent = `${id}.${timestamp}.${body}`;
@@ -233,7 +234,11 @@ async function runTests() {
       testSecret,
     );
 
-    console.log('   ✅ Invalid signature correctly rejected:', !invalidResult.isValid ? 'PASSED' : 'FAILED');
+    const invalidSigPassed = !invalidResult.isValid && (
+      invalidResult.errorCode === 'INVALID_SIGNATURE'
+      || invalidResult.errorCode === 'TIMESTAMP_EXPIRED'
+    );
+    console.log('   ✅ Invalid signature correctly rejected:', invalidSigPassed ? 'PASSED' : 'FAILED');
     if (invalidResult.isValid) {
       console.log('   ❌ Should have been rejected');
     }
@@ -254,7 +259,8 @@ async function runTests() {
       testSecret,
     );
 
-    console.log('   ✅ Missing headers correctly rejected:', !missingHeaderResult.isValid ? 'PASSED' : 'FAILED');
+    const missingHeaderPassed = !missingHeaderResult.isValid && missingHeaderResult.errorCode === 'MISSING_SIGNATURE';
+    console.log('   ✅ Missing headers correctly rejected:', missingHeaderPassed ? 'PASSED' : 'FAILED');
     if (missingHeaderResult.isValid) {
       console.log('   ❌ Should have been rejected');
     }
@@ -307,6 +313,85 @@ try {
 } catch (error) {
   console.log('   ❌ GitLab invalid token test failed:', error);
 }
+
+
+
+  // Test 10: verifyAny should auto-detect Stripe
+  console.log('\n10. Testing verifyAny auto-detection...');
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const stripeSignature = createStripeSignature(testBody, testSecret, timestamp);
+
+    const request = createMockRequest({
+      'stripe-signature': stripeSignature,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyAny(request, {
+      stripe: testSecret,
+      github: 'wrong-secret',
+    });
+
+    console.log('   ✅ verifyAny:', result.isValid && result.platform === 'stripe' ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ verifyAny test failed:', error);
+  }
+
+  // Test 11: Normalization for Stripe
+  console.log('\n11. Testing payload normalization...');
+  try {
+    const normalizedStripeBody = JSON.stringify({
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_123',
+          amount: 5000,
+          currency: 'usd',
+          customer: 'cus_456',
+        },
+      },
+    });
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const stripeSignature = createStripeSignature(normalizedStripeBody, testSecret, timestamp);
+
+    const request = createMockRequest(
+      {
+        'stripe-signature': stripeSignature,
+        'content-type': 'application/json',
+      },
+      normalizedStripeBody,
+    );
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'stripe',
+      testSecret,
+      300,
+      true,
+    );
+
+    const payload = result.payload as Record<string, any>;
+    const passed = result.isValid
+      && payload.event === 'payment.succeeded'
+      && payload.currency === 'USD'
+      && payload.transaction_id === 'pi_123';
+
+    console.log('   ✅ Normalization:', passed ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Normalization test failed:', error);
+  }
+
+
+  // Test 12: Category-aware normalization registry
+  console.log('\n12. Testing category-based platform registry...');
+  try {
+    const paymentPlatforms = getPlatformsByCategory('payment');
+    const hasStripeAndPolar = paymentPlatforms.includes('stripe') && paymentPlatforms.includes('polar');
+    console.log('   ✅ Category registry:', hasStripeAndPolar ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Category registry test failed:', error);
+  }
 
   console.log('\n🎉 All tests completed!');
 }
