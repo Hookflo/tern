@@ -494,4 +494,5 @@ MIT License - see [LICENSE](./LICENSE) for details.
 
 - [Documentation](./USAGE.md)
 - [Framework Summary](./FRAMEWORK_SUMMARY.md)
+- [Architecture Guide](./ARCHITECTURE.md)
 - [Issues](https://github.com/Hookflo/tern/issues)
