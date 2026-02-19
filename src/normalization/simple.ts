@@ -7,7 +7,9 @@ import {
   AuthWebhookNormalized,
   InfrastructureWebhookNormalized,
   UnknownNormalizedWebhook,
+  SemanticNormalizationResult,
 } from '../types';
+import { runSemanticNormalization } from './semantic';
 
 type PlatformNormalizationFn<TPayload extends AnyNormalizedWebhook> = (payload: any) => Omit<TPayload, '_raw' | '_platform'>;
 
@@ -149,11 +151,11 @@ function buildUnknownNormalizedPayload(
   };
 }
 
-export function normalizePayload(
+export async function normalizePayload(
   platform: WebhookPlatform,
   payload: any,
   normalize?: boolean | NormalizeOptions,
-): AnyNormalizedWebhook | unknown {
+): Promise<AnyNormalizedWebhook | unknown> {
   const options = resolveNormalizeOptions(normalize);
   if (!options.enabled) {
     return payload;
@@ -163,24 +165,46 @@ export function normalizePayload(
   const inferredCategory = spec?.category;
 
   if (!spec) {
-    return buildUnknownNormalizedPayload(platform, payload, options.category, options.includeRaw);
+    const unknownPayload = buildUnknownNormalizedPayload(platform, payload, options.category, options.includeRaw);
+    return attachSemanticIfNeeded(unknownPayload, payload, normalize);
   }
 
   if (options.category && options.category !== inferredCategory) {
-    return buildUnknownNormalizedPayload(
+    const unknownPayload = buildUnknownNormalizedPayload(
       platform,
       payload,
       inferredCategory,
       options.includeRaw,
       `Requested normalization category '${options.category}' does not match platform category '${inferredCategory}'`,
     );
+    return attachSemanticIfNeeded(unknownPayload, payload, normalize);
   }
 
   const normalized = spec.normalize(payload);
 
-  return {
+  const basePayload = {
     ...normalized,
     _platform: platform,
     _raw: options.includeRaw ? payload : undefined,
   } as AnyNormalizedWebhook;
+
+  return attachSemanticIfNeeded(basePayload, payload, normalize);
+}
+
+async function attachSemanticIfNeeded(
+  normalizedPayload: AnyNormalizedWebhook,
+  rawPayload: unknown,
+  normalize?: boolean | NormalizeOptions,
+): Promise<AnyNormalizedWebhook> {
+  const semanticOptions = typeof normalize === 'object' ? normalize.semantic : undefined;
+  if (!semanticOptions) {
+    return normalizedPayload;
+  }
+
+  const semanticResult: SemanticNormalizationResult = await runSemanticNormalization(rawPayload, semanticOptions);
+
+  return {
+    ...normalizedPayload,
+    _semantic: semanticResult,
+  };
 }

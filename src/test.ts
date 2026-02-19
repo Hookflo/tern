@@ -393,6 +393,59 @@ try {
     console.log('   ❌ Category registry test failed:', error);
   }
 
+  // Test 13: Semantic normalization with manual fallback
+  console.log('\n13. Testing semantic normalization fallback...');
+  try {
+    const semanticStripeBody = JSON.stringify({
+      type: 'payment_intent.succeeded',
+      data: {
+        object: {
+          id: 'pi_789',
+          billing_details: {
+            email: 'buyer@example.com',
+          },
+        },
+      },
+    });
+
+    const timestamp = Math.floor(Date.now() / 1000);
+    const stripeSignature = createStripeSignature(semanticStripeBody, testSecret, timestamp);
+
+    const request = createMockRequest(
+      {
+        'stripe-signature': stripeSignature,
+        'content-type': 'application/json',
+      },
+      semanticStripeBody,
+    );
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'stripe',
+      testSecret,
+      300,
+      {
+        semantic: {
+          fields: {
+            customer_email: {
+              description: 'email of the paying customer',
+              fallback: 'data.object.billing_details.email',
+            },
+          },
+        },
+      },
+    );
+
+    const payload = result.payload as Record<string, any>;
+    const semanticEmail = payload._semantic?.fields?.customer_email;
+    const semanticSource = payload._semantic?.meta?.customer_email?.source;
+    const passed = result.isValid && semanticEmail === 'buyer@example.com' && semanticSource === 'manual';
+
+    console.log('   ✅ Semantic fallback:', passed ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Semantic fallback test failed:', error);
+  }
+
   console.log('\n🎉 All tests completed!');
 }
 

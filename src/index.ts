@@ -29,7 +29,7 @@ export class WebhookVerificationService {
       result.platform = config.platform;
 
       if (config.normalize) {
-        result.payload = normalizePayload(config.platform, result.payload, config.normalize);
+        result.payload = await normalizePayload(config.platform, result.payload, config.normalize);
       }
     }
 
