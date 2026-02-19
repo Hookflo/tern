@@ -101,9 +101,9 @@ const result = await WebhookVerificationService.verify(request, config);
 - **Stripe**: `stripe-signature` with comma-separated format
 - **Clerk**: `svix-signature` with base64 encoding
 - **Dodo Payments**: `webhook-signature` with raw format
-- **Shopify**: `x-shopify-hmac-sha256`
+- **Shopify**: `x-shopify-hmac-sha256` (base64 signature)
 - **Vercel**: `x-vercel-signature`
-- **Polar**: `x-polar-signature`
+- **Polar**: `webhook-signature` (Standard Webhooks)
 
 ### HMAC-SHA1 (Legacy)
 - Legacy platforms that still use SHA1

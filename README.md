@@ -218,7 +218,7 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 - **WooCommerce**: HMAC-SHA256 (base64 signature)
 - **ReplicateAI**: HMAC-SHA256 (Standard Webhooks style)
 - **fal.ai**: ED25519 (`x-fal-webhook-signature`)
-- **Shopify**: HMAC-SHA256
+- **Shopify**: HMAC-SHA256 (base64 signature)
 - **Vercel**: HMAC-SHA256
 - **Polar**: HMAC-SHA256
 - **Supabase**: Token-based authentication

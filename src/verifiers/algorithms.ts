@@ -191,11 +191,14 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     algorithm: string = 'sha256',
   ): boolean {
     const secretEncoding = this.config.customConfig?.secretEncoding || 'base64';
-    const secretMaterial = secretEncoding === 'base64'
-      ? new Uint8Array(
-        Buffer.from(this.secret.includes('_') ? this.secret.split('_')[1] : this.secret, 'base64'),
-      )
-      : this.secret;
+
+    let secretMaterial: string | Uint8Array = this.secret;
+    if (secretEncoding === 'base64') {
+      const base64Secret = this.secret.includes('_')
+        ? this.secret.split('_').slice(1).join('_')
+        : this.secret;
+      secretMaterial = new Uint8Array(Buffer.from(base64Secret, 'base64'));
+    }
 
     const hmac = createHmac(algorithm, secretMaterial);
     hmac.update(payload);

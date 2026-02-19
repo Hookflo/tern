@@ -32,7 +32,7 @@ export function createWebhookHandler<TEnv = Record<string, unknown>, TResponse =
       );
 
       if (!result.isValid) {
-        return Response.json({ error: result.error, platform: result.platform }, { status: 400 });
+        return Response.json({ error: result.error, errorCode: result.errorCode, platform: result.platform, metadata: result.metadata }, { status: 400 });
       }
 
       const data = await options.handler(result.payload, env, result.metadata || {});

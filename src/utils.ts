@@ -160,6 +160,13 @@ export function detectPlatformFromHeaders(headers: Headers): WebhookPlatform | n
     return 'polar';
   }
 
+  if (headerMap.has('webhook-signature')) {
+    const userAgent = (headerMap.get('user-agent') || '').toLowerCase();
+    if (userAgent.includes('polar')) {
+      return 'polar';
+    }
+  }
+
   // Supabase
   if (headerMap.has('x-webhook-token')) {
     return 'supabase';

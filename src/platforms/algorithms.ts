@@ -83,10 +83,13 @@ export const platformAlgorithmConfigs: Record<
       algorithm: 'hmac-sha256',
       headerName: 'x-shopify-hmac-sha256',
       headerFormat: 'raw',
-      timestampHeader: 'x-shopify-shop-domain',
       payloadFormat: 'raw',
+      customConfig: {
+        encoding: 'base64',
+        secretEncoding: 'utf8',
+      },
     },
-    description: 'Shopify webhooks use HMAC-SHA256',
+    description: 'Shopify webhooks use HMAC-SHA256 with base64 encoded signature',
   },
 
   vercel: {
@@ -106,13 +109,20 @@ export const platformAlgorithmConfigs: Record<
     platform: 'polar',
     signatureConfig: {
       algorithm: 'hmac-sha256',
-      headerName: 'x-polar-signature',
+      headerName: 'webhook-signature',
       headerFormat: 'raw',
-      timestampHeader: 'x-polar-timestamp',
+      timestampHeader: 'webhook-timestamp',
       timestampFormat: 'unix',
-      payloadFormat: 'raw',
+      payloadFormat: 'custom',
+      customConfig: {
+        signatureFormat: 'v1={signature}',
+        payloadFormat: '{id}.{timestamp}.{body}',
+        encoding: 'base64',
+        secretEncoding: 'base64',
+        idHeader: 'webhook-id',
+      },
     },
-    description: 'Polar webhooks use HMAC-SHA256',
+    description: 'Polar webhooks use HMAC-SHA256 with Standard Webhooks format',
   },
 
   supabase: {

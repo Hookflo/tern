@@ -5,6 +5,7 @@ import {
   SignatureConfig,
   MultiPlatformSecrets,
   NormalizeOptions,
+  WebhookErrorCode,
 } from './types';
 import { createAlgorithmVerifier } from './verifiers/algorithms';
 import { createCustomVerifier } from './verifiers/custom-algorithms';
@@ -112,6 +113,12 @@ export class WebhookVerificationService {
       );
     }
 
+    const failedAttempts: Array<{
+      platform: WebhookPlatform;
+      error?: string;
+      errorCode?: WebhookErrorCode;
+    }> = [];
+
     for (const [platform, secret] of Object.entries(secrets)) {
       if (!secret) {
         continue;
@@ -128,13 +135,28 @@ export class WebhookVerificationService {
       if (result.isValid) {
         return result;
       }
+
+      failedAttempts.push({
+        platform: platform.toLowerCase() as WebhookPlatform,
+        error: result.error,
+        errorCode: result.errorCode,
+      });
     }
+
+    const details = failedAttempts
+      .map((attempt) => `${attempt.platform}: ${attempt.error || 'verification failed'}`)
+      .join('; ');
 
     return {
       isValid: false,
-      error: 'Unable to verify webhook with provided platform secrets',
-      errorCode: 'VERIFICATION_ERROR',
+      error: details
+        ? `Unable to verify webhook with provided platform secrets. Attempts -> ${details}`
+        : 'Unable to verify webhook with provided platform secrets',
+      errorCode: failedAttempts.find((attempt) => attempt.errorCode)?.errorCode || 'VERIFICATION_ERROR',
       platform: detectedPlatform,
+      metadata: {
+        attempts: failedAttempts,
+      },
     };
   }
 
@@ -147,6 +169,7 @@ export class WebhookVerificationService {
     if (headers.has('workos-signature')) return 'workos';
     if (headers.has('webhook-signature')) {
       const userAgent = headers.get('user-agent')?.toLowerCase() || '';
+      if (userAgent.includes('polar')) return 'polar';
       if (userAgent.includes('replicate')) return 'replicateai';
       return 'dodopayments';
     }

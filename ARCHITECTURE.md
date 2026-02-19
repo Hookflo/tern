@@ -162,9 +162,9 @@ sequenceDiagram
 | GitHub | Signature | `x-hub-signature-256` | HMAC-SHA256 with `sha256=` prefix | None | (raw/fallback) | Strong verifier support |
 | Clerk | Signature | `svix-signature` | HMAC-SHA256 (base64 secret derivation) | `svix-timestamp` | `auth` | Svix-style payload format |
 | Dodo Payments | Signature | `webhook-signature` | HMAC-SHA256 (svix-style/base64) | `webhook-timestamp` | (raw/fallback) | Verifier implemented |
-| Shopify | Signature | `x-shopify-hmac-sha256` | HMAC-SHA256 | none/custom | (raw/fallback) | Platform config present |
+| Shopify | Signature | `x-shopify-hmac-sha256` | HMAC-SHA256 (base64 signature) | none | (raw/fallback) | Platform config present |
 | Vercel | Signature | `x-vercel-signature` | HMAC-SHA256 | `x-vercel-timestamp` | `infrastructure` | Typed normalization present |
-| Polar | Signature | `x-polar-signature` | HMAC-SHA256 | `x-polar-timestamp` | `payment` | Typed normalization present |
+| Polar | Signature | `webhook-signature` | HMAC-SHA256 (Standard Webhooks/base64) | `webhook-timestamp` | `payment` | Typed normalization present |
 | Supabase | Token | `x-webhook-token` (+ `x-webhook-id`) | token compare (custom) | N/A | `auth` | Typed normalization present |
 | GitLab | Token | `X-Gitlab-Token` | token compare (custom) | N/A | (raw/fallback) | Verifier implemented |
 | Custom/Unknown | Configurable | user-defined | configurable | configurable | fallback | Extension path for new platforms |
