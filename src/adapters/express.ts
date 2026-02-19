@@ -39,7 +39,7 @@ export function createWebhookMiddleware(options: ExpressWebhookMiddlewareOptions
       );
 
       if (!result.isValid) {
-        res.status(400).json({ error: result.error, platform: result.platform });
+        res.status(400).json({ error: result.error, errorCode: result.errorCode, platform: result.platform, metadata: result.metadata });
         return;
       }
 

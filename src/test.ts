@@ -59,6 +59,13 @@ function createPaddleSignature(body: string, secret: string, timestamp: number):
   return `ts=${timestamp};h1=${hmac.digest('hex')}`;
 }
 
+
+function createShopifySignature(body: string, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(body);
+  return hmac.digest('base64');
+}
+
 function createWooCommerceSignature(body: string, secret: string): string {
   const hmac = createHmac('sha256', secret);
   hmac.update(body);
@@ -372,6 +379,29 @@ try {
     console.log('   ❌ verifyAny test failed:', error);
   }
 
+  // Test 10.5: verifyAny error diagnostics
+  console.log('\n10.5. Testing verifyAny error diagnostics...');
+  try {
+    const unknownRequest = createMockRequest({
+      'content-type': 'application/json',
+    });
+
+    const invalidVerifyAny = await WebhookVerificationService.verifyAny(unknownRequest, {
+      stripe: testSecret,
+      shopify: testSecret,
+    });
+
+    const hasDetailedErrors = Boolean(
+      invalidVerifyAny.error
+      && invalidVerifyAny.error.includes('Attempts ->')
+      && invalidVerifyAny.metadata?.attempts?.length === 2,
+    );
+
+    console.log('   ✅ verifyAny diagnostics:', hasDetailedErrors ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ verifyAny diagnostics test failed:', error);
+  }
+
   // Test 11: Normalization for Stripe
   console.log('\n11. Testing payload normalization...');
   try {
@@ -513,6 +543,24 @@ try {
     console.log('   ❌ WorkOS test failed:', error);
   }
 
+  // Test 17.5: Shopify
+  console.log('\n17.5. Testing Shopify webhook...');
+  try {
+    const signature = createShopifySignature(testBody, testSecret);
+    const request = createMockRequest({
+      'x-shopify-hmac-sha256': signature,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'shopify', testSecret);
+    console.log('   ✅ Shopify:', result.isValid ? 'PASSED' : 'FAILED');
+    if (!result.isValid) {
+      console.log('   ❌ Error:', result.error);
+    }
+  } catch (error) {
+    console.log('   ❌ Shopify test failed:', error);
+  }
+
   // Test 18: WooCommerce
   console.log('\n18. Testing WooCommerce webhook...');
   try {
@@ -526,6 +574,30 @@ try {
     console.log('   ✅ WooCommerce:', result.isValid ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ WooCommerce test failed:', error);
+  }
+
+  // Test 18.5: Polar (Standard Webhooks)
+  console.log('\n18.5. Testing Polar webhook...');
+  try {
+    const secret = `whsec_${Buffer.from(testSecret).toString('base64')}`;
+    const webhookId = 'polar-webhook-id-1';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createStandardWebhooksSignature(testBody, secret, webhookId, timestamp);
+    const request = createMockRequest({
+      'webhook-signature': signature,
+      'webhook-id': webhookId,
+      'webhook-timestamp': timestamp.toString(),
+      'user-agent': 'Polar.sh Webhooks',
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'polar', secret);
+    const detectedPlatform = WebhookVerificationService.detectPlatform(request);
+
+    console.log('   ✅ Polar verification:', result.isValid ? 'PASSED' : 'FAILED');
+    console.log('   ✅ Polar auto-detect:', detectedPlatform === 'polar' ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Polar test failed:', error);
   }
 
   // Test 19: Replicate

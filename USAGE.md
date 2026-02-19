@@ -35,7 +35,7 @@ if (result.isValid) {
 - **Stripe**: `stripe-signature` header
 - **Shopify**: `x-shopify-hmac-sha256` header
 - **Vercel**: `x-vercel-signature` header
-- **Polar**: `x-polar-signature` header
+- **Polar**: `webhook-signature` header (Standard Webhooks)
 - **Dodo Payments**: `webhook-signature` header
 - **Paddle**: `paddle-signature` header
 - **Razorpay**: `x-razorpay-signature` header
