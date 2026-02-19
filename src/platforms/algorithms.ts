@@ -118,7 +118,6 @@ export const platformAlgorithmConfigs: Record<
         signatureFormat: 'v1={signature}',
         payloadFormat: '{id}.{timestamp}.{body}',
         encoding: 'base64',
-        secretEncoding: 'base64',
         idHeader: 'webhook-id',
       },
     },
