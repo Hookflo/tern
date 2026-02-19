@@ -144,9 +144,20 @@ export class WebhookVerificationService {
     if (headers.has('stripe-signature')) return 'stripe';
     if (headers.has('x-hub-signature-256')) return 'github';
     if (headers.has('svix-signature')) return 'clerk';
-    if (headers.has('webhook-signature')) return 'dodopayments';
+    if (headers.has('workos-signature')) return 'workos';
+    if (headers.has('webhook-signature')) {
+      const userAgent = headers.get('user-agent')?.toLowerCase() || '';
+      if (userAgent.includes('replicate')) return 'replicateai';
+      return 'dodopayments';
+    }
     if (headers.has('x-gitlab-token')) return 'gitlab';
     if (headers.has('x-polar-signature')) return 'polar';
+    if (headers.has('paddle-signature')) return 'paddle';
+    if (headers.has('x-razorpay-signature')) return 'razorpay';
+    if (headers.has('x-signature')) return 'lemonsqueezy';
+    if (headers.has('x-auth0-signature')) return 'auth0';
+    if (headers.has('x-wc-webhook-signature')) return 'woocommerce';
+    if (headers.has('x-fal-signature') || headers.has('x-fal-webhook-signature')) return 'falai';
     if (headers.has('x-shopify-hmac-sha256')) return 'shopify';
     if (headers.has('x-vercel-signature')) return 'vercel';
     if (headers.has('x-webhook-token') && headers.has('x-webhook-id')) return 'supabase';

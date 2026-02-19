@@ -37,10 +37,71 @@ if (result.isValid) {
 - **Vercel**: `x-vercel-signature` header
 - **Polar**: `x-polar-signature` header
 - **Dodo Payments**: `webhook-signature` header
+- **Paddle**: `paddle-signature` header
+- **Razorpay**: `x-razorpay-signature` header
+- **Lemon Squeezy**: `x-signature` header
+- **Auth0**: `x-auth0-signature` header
+- **WorkOS**: `workos-signature` header
+- **WooCommerce**: `x-wc-webhook-signature` header
+- **ReplicateAI**: `webhook-signature` header
+- **fal.ai**: `x-fal-webhook-signature` header (ED25519)
 
 ### Custom Platforms
 - **Clerk**: Custom base64 encoding
 - **Supabase**: Token-based authentication
+
+
+## 🧩 Framework middleware usage for new platforms
+
+All built-in platforms work automatically with framework adapters (`express`, `nextjs`, `cloudflare`) by setting `platform` and `secret`.
+
+```typescript
+// Next.js - Paddle
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'paddle',
+  secret: process.env.PADDLE_WEBHOOK_SECRET!,
+  handler: async (payload) => ({ received: true, type: payload.event_type ?? payload.type }),
+});
+```
+
+```typescript
+// Express - Auth0
+import { createWebhookMiddleware } from '@hookflo/tern/express';
+
+app.post('/webhooks/auth0', createWebhookMiddleware({
+  platform: 'auth0',
+  secret: process.env.AUTH0_WEBHOOK_SECRET!,
+}), (req, res) => res.json({ received: true }));
+```
+
+```typescript
+// Cloudflare - WooCommerce
+import { createWebhookHandler } from '@hookflo/tern/cloudflare';
+
+const handleWoo = createWebhookHandler({
+  platform: 'woocommerce',
+  secretEnv: 'WOO_WEBHOOK_SECRET',
+  handler: async () => ({ received: true }),
+});
+```
+
+### fal.ai (important)
+
+fal.ai verification is ED25519-based and requires `x-fal-webhook-signature` plus fal request metadata headers.
+
+For framework adapters, pass a PEM public key via `secret`:
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'falai',
+  secret: process.env.FAL_PUBLIC_KEY_PEM!,
+  handler: async (payload, metadata) => ({ received: true, requestId: metadata.requestId }),
+});
+```
 
 ## 🔧 API Reference
 

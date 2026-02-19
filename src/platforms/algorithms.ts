@@ -49,6 +49,7 @@ export const platformAlgorithmConfigs: Record<
         signatureFormat: 'v1={signature}',
         payloadFormat: '{id}.{timestamp}.{body}',
         encoding: 'base64',
+        secretEncoding: 'base64',
         idHeader: 'svix-id',
       },
     },
@@ -68,6 +69,7 @@ export const platformAlgorithmConfigs: Record<
         signatureFormat: 'v1={signature}',
         payloadFormat: '{id}.{timestamp}.{body}',
         encoding: 'base64',
+        secretEncoding: 'base64',
         idHeader: 'webhook-id',
       },
     },
@@ -143,6 +145,124 @@ export const platformAlgorithmConfigs: Record<
     description: 'GitLab webhooks use HMAC-SHA256 with X-Gitlab-Token header',
   },
 
+  paddle: {
+    platform: 'paddle',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'paddle-signature',
+      headerFormat: 'comma-separated',
+      payloadFormat: 'custom',
+      customConfig: {
+        timestampKey: 'ts',
+        signatureKey: 'h1',
+        payloadFormat: '{timestamp}:{body}',
+      },
+    },
+    description: 'Paddle webhooks use HMAC-SHA256 with Paddle-Signature (ts/h1) header format',
+  },
+
+  razorpay: {
+    platform: 'razorpay',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'x-razorpay-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
+    },
+    description: 'Razorpay webhooks use HMAC-SHA256 with X-Razorpay-Signature header',
+  },
+
+  lemonsqueezy: {
+    platform: 'lemonsqueezy',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'x-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
+    },
+    description: 'Lemon Squeezy webhooks use HMAC-SHA256 with X-Signature header',
+  },
+
+  auth0: {
+    platform: 'auth0',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'x-auth0-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
+    },
+    description: 'Auth0 webhooks use HMAC-SHA256 with X-Auth0-Signature header',
+  },
+
+  workos: {
+    platform: 'workos',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'workos-signature',
+      headerFormat: 'comma-separated',
+      payloadFormat: 'custom',
+      customConfig: {
+        timestampKey: 't',
+        signatureKey: 'v1',
+        payloadFormat: '{timestamp}.{body}',
+      },
+    },
+    description: 'WorkOS webhooks use HMAC-SHA256 with WorkOS-Signature (t/v1) format',
+  },
+
+  woocommerce: {
+    platform: 'woocommerce',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'x-wc-webhook-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
+      customConfig: {
+        encoding: 'base64',
+        secretEncoding: 'utf8',
+      },
+    },
+    description: 'WooCommerce webhooks use HMAC-SHA256 with base64 encoded signature',
+  },
+
+  replicateai: {
+    platform: 'replicateai',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'webhook-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'webhook-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'custom',
+      customConfig: {
+        signatureFormat: 'v1={signature}',
+        payloadFormat: '{id}.{timestamp}.{body}',
+        encoding: 'base64',
+        secretEncoding: 'base64',
+        idHeader: 'webhook-id',
+      },
+    },
+    description: 'Replicate webhooks use HMAC-SHA256 with Standard Webhooks (svix-style) format',
+  },
+
+  falai: {
+    platform: 'falai',
+    signatureConfig: {
+      algorithm: 'ed25519',
+      headerName: 'x-fal-webhook-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'custom',
+      customConfig: {
+        requestIdHeader: 'x-fal-request-id',
+        userIdHeader: 'x-fal-user-id',
+        timestampHeader: 'x-fal-webhook-timestamp',
+        kidHeader: 'x-fal-webhook-key-id',
+        jwksUrl: 'https://rest.alpha.fal.ai/.well-known/jwks.json',
+      },
+    },
+    description: 'fal.ai webhooks use ED25519 with a signed request/user/timestamp/body-hash payload',
+  },
+
   custom: {
     platform: 'custom',
     signatureConfig: {
@@ -203,8 +323,9 @@ export function validateSignatureConfig(config: SignatureConfig): boolean {
     case 'hmac-sha512':
       return true;
     case 'rsa-sha256':
-    case 'ed25519':
       return !!config.customConfig?.publicKey;
+    case 'ed25519':
+      return !!config.customConfig?.publicKey || !!config.customConfig?.jwksUrl;
     case 'custom':
       return !!config.customConfig;
     default:

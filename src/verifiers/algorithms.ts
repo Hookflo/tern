@@ -1,10 +1,17 @@
-import { createHmac } from 'crypto';
+import {
+  createHmac,
+  createHash,
+  createPublicKey,
+  verify as verifySignature,
+} from 'crypto';
 import { WebhookVerifier } from './base';
 import {
   WebhookVerificationResult,
   SignatureConfig,
   WebhookPlatform,
 } from '../types';
+
+const ed25519KeyCache = new Map<string, string>();
 
 export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   protected config: SignatureConfig;
@@ -24,28 +31,41 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
   abstract verify(request: Request): Promise<WebhookVerificationResult>;
 
+  protected parseDelimitedHeader(headerValue: string): Record<string, string> {
+    const parts = headerValue.split(/[;,]/);
+    const values: Record<string, string> = {};
+
+    for (const part of parts) {
+      const trimmed = part.trim();
+      if (!trimmed) continue;
+      const equalIndex = trimmed.indexOf('=');
+      if (equalIndex === -1) continue;
+
+      const key = trimmed.slice(0, equalIndex).trim();
+      const value = trimmed.slice(equalIndex + 1).trim();
+      if (key && value) {
+        values[key] = value;
+      }
+    }
+
+    return values;
+  }
+
   protected extractSignature(request: Request): string | null {
     const headerValue = request.headers.get(this.config.headerName);
     if (!headerValue) return null;
 
     switch (this.config.headerFormat) {
       case 'prefixed':
-        // For GitHub, return the full signature including prefix for comparison
         return headerValue;
-      case 'comma-separated':
-        // Handle comma-separated format like Stripe: "t=1234567890,v1=abc123"
-        const parts = headerValue.split(',');
-        const sigMap: Record<string, string> = {};
-        for (const part of parts) {
-          const [key, value] = part.split('=');
-          if (key && value) {
-            sigMap[key] = value;
-          }
-        }
-        return sigMap.v1 || sigMap.signature || null;
+      case 'comma-separated': {
+        const sigMap = this.parseDelimitedHeader(headerValue);
+        const signatureKey = this.config.customConfig?.signatureKey || 'v1';
+        return sigMap[signatureKey] || sigMap.signature || sigMap.v1 || null;
+      }
       case 'raw':
       default:
-        if (this.platform === 'clerk' || this.platform === 'dodopayments') {
+        if (this.config.customConfig?.signatureFormat?.includes('v1=')) {
           const signatures = headerValue.split(' ');
           for (const sig of signatures) {
             const [version, signature] = sig.split(',');
@@ -71,7 +91,6 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
       case 'iso':
         return Math.floor(new Date(timestampHeader).getTime() / 1000);
       case 'custom':
-        // Custom timestamp parsing logic can be added here
         return parseInt(timestampHeader, 10);
       default:
         return parseInt(timestampHeader, 10);
@@ -79,31 +98,25 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   }
 
   protected extractTimestampFromSignature(request: Request): number | null {
-    // For platforms like Stripe where timestamp is embedded in signature
-    if (this.config.headerFormat === 'comma-separated') {
-      const headerValue = request.headers.get(this.config.headerName);
-      if (!headerValue) return null;
-
-      const parts = headerValue.split(',');
-      const sigMap: Record<string, string> = {};
-      for (const part of parts) {
-        const [key, value] = part.split('=');
-        if (key && value) {
-          sigMap[key] = value;
-        }
-      }
-      return sigMap.t ? parseInt(sigMap.t, 10) : null;
+    if (this.config.headerFormat !== 'comma-separated') {
+      return null;
     }
-    return null;
+
+    const headerValue = request.headers.get(this.config.headerName);
+    if (!headerValue) return null;
+
+    const sigMap = this.parseDelimitedHeader(headerValue);
+    const timestampKey = this.config.customConfig?.timestampKey || 't';
+    return sigMap[timestampKey] ? parseInt(sigMap[timestampKey], 10) : null;
   }
 
   protected formatPayload(rawBody: string, request: Request): string {
     switch (this.config.payloadFormat) {
-      case 'timestamped':
-        // For Stripe, timestamp is embedded in signature
+      case 'timestamped': {
         const timestamp = this.extractTimestampFromSignature(request)
           || this.extractTimestamp(request);
         return timestamp ? `${timestamp}.${rawBody}` : rawBody;
+      }
       case 'custom':
         return this.formatCustomPayload(rawBody, request);
       case 'raw':
@@ -119,7 +132,6 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
     const customFormat = this.config.customConfig.payloadFormat;
 
-    // Handle Clerk-style format: {id}.{timestamp}.{body}
     if (customFormat.includes('{id}') && customFormat.includes('{timestamp}')) {
       const id = request.headers.get(
         this.config.customConfig.idHeader || 'x-webhook-id',
@@ -133,12 +145,12 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
         .replace('{body}', rawBody);
     }
 
-    // Handle Stripe-style format: {timestamp}.{body}
     if (
       customFormat.includes('{timestamp}')
       && customFormat.includes('{body}')
     ) {
-      const timestamp = this.extractTimestamp(request);
+      const timestamp = this.extractTimestampFromSignature(request)
+        || this.extractTimestamp(request);
       return customFormat
         .replace('{timestamp}', timestamp?.toString() || '')
         .replace('{body}', rawBody);
@@ -178,11 +190,14 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     signature: string,
     algorithm: string = 'sha256',
   ): boolean {
-    // For platforms like Clerk that use base64 encoding
-    const secretBytes = new Uint8Array(
-      Buffer.from(this.secret.split('_')[1], 'base64'),
-    );
-    const hmac = createHmac(algorithm, secretBytes);
+    const secretEncoding = this.config.customConfig?.secretEncoding || 'base64';
+    const secretMaterial = secretEncoding === 'base64'
+      ? new Uint8Array(
+        Buffer.from(this.secret.includes('_') ? this.secret.split('_')[1] : this.secret, 'base64'),
+      )
+      : this.secret;
+
+    const hmac = createHmac(algorithm, secretMaterial);
     hmac.update(payload);
     const expectedSignature = hmac.digest('base64');
 
@@ -194,35 +209,33 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
       algorithm: this.config.algorithm,
     };
 
-    // Add timestamp if available
-    const timestamp = this.extractTimestamp(request);
+    const timestamp = this.extractTimestamp(request) || this.extractTimestampFromSignature(request);
     if (timestamp) {
       metadata.timestamp = timestamp.toString();
     }
 
-    // Add platform-specific metadata
     switch (this.platform) {
       case 'github':
         metadata.event = request.headers.get('x-github-event');
         metadata.delivery = request.headers.get('x-github-delivery');
         break;
-      case 'stripe':
-        // Extract Stripe-specific metadata from signature
+      case 'stripe': {
         const headerValue = request.headers.get(this.config.headerName);
         if (headerValue && this.config.headerFormat === 'comma-separated') {
-          const parts = headerValue.split(',');
-          const sigMap: Record<string, string> = {};
-          for (const part of parts) {
-            const [key, value] = part.split('=');
-            if (key && value) {
-              sigMap[key] = value;
-            }
-          }
+          const sigMap = this.parseDelimitedHeader(headerValue);
           metadata.id = sigMap.id;
         }
         break;
+      }
       case 'clerk':
-        metadata.id = request.headers.get('svix-id');
+      case 'dodopayments':
+      case 'replicateai':
+        metadata.id = request.headers.get(this.config.customConfig?.idHeader || 'webhook-id');
+        break;
+      case 'workos':
+        metadata.id = request.headers.get(this.config.customConfig?.idHeader || 'webhook-id');
+        break;
+      default:
         break;
     }
 
@@ -230,7 +243,6 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   }
 }
 
-// Generic HMAC Verifier that handles all HMAC-based algorithms
 export class GenericHMACVerifier extends AlgorithmBasedVerifier {
   async verify(request: Request): Promise<WebhookVerificationResult> {
     try {
@@ -246,17 +258,13 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
 
       const rawBody = await request.text();
 
-      // Extract timestamp based on platform configuration
       let timestamp: number | null = null;
       if (this.config.headerFormat === 'comma-separated') {
-        // For platforms like Stripe where timestamp is embedded in signature
         timestamp = this.extractTimestampFromSignature(request);
       } else {
-        // For platforms with separate timestamp header
         timestamp = this.extractTimestamp(request);
       }
 
-      // Validate timestamp if required
       if (timestamp && !this.isTimestampValid(timestamp)) {
         return {
           isValid: false,
@@ -266,21 +274,16 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         };
       }
 
-      // Format payload according to platform requirements
       const payload = this.formatPayload(rawBody, request);
 
-      // Verify signature based on platform configuration
       let isValid = false;
       const algorithm = this.config.algorithm.replace('hmac-', '');
 
       if (this.config.customConfig?.encoding === 'base64') {
-        // For platforms like Clerk that use base64 encoding
         isValid = this.verifyHMACWithBase64(payload, signature, algorithm);
       } else if (this.config.headerFormat === 'prefixed') {
-        // For platforms like GitHub that use prefixed signatures
         isValid = this.verifyHMACWithPrefix(payload, signature, algorithm);
       } else {
-        // Standard HMAC verification
         isValid = this.verifyHMAC(payload, signature, algorithm);
       }
 
@@ -293,7 +296,6 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         };
       }
 
-      // Parse payload
       let parsedPayload;
       try {
         parsedPayload = JSON.parse(rawBody);
@@ -301,7 +303,6 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         parsedPayload = rawBody;
       }
 
-      // Extract platform-specific metadata
       const metadata = this.extractMetadata(request);
 
       return {
@@ -313,9 +314,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
     } catch (error) {
       return {
         isValid: false,
-        error: `${this.platform} verification error: ${
-          (error as Error).message
-        }`,
+        error: `${this.platform} verification error: ${(error as Error).message}`,
         errorCode: 'VERIFICATION_ERROR',
         platform: this.platform,
       };
@@ -323,7 +322,130 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
   }
 }
 
-// Legacy verifiers for backward compatibility
+export class Ed25519Verifier extends AlgorithmBasedVerifier {
+  private async resolvePublicKey(request: Request): Promise<string | null> {
+    const configPublicKey = this.config.customConfig?.publicKey as string | undefined;
+    if (configPublicKey) {
+      return configPublicKey;
+    }
+
+    if (this.secret && this.secret.trim().length > 0) {
+      return this.secret;
+    }
+
+    const jwksUrl = this.config.customConfig?.jwksUrl as string | undefined;
+    const kidHeader = this.config.customConfig?.kidHeader as string | undefined;
+    const kid = kidHeader ? request.headers.get(kidHeader) : null;
+
+    if (!jwksUrl || !kid) {
+      return null;
+    }
+
+    const cacheKey = `${jwksUrl}:${kid}`;
+    if (ed25519KeyCache.has(cacheKey)) {
+      return ed25519KeyCache.get(cacheKey) as string;
+    }
+
+    const response = await fetch(jwksUrl);
+    if (!response.ok) {
+      return null;
+    }
+
+    const body = await response.json() as { keys?: Array<Record<string, string>> };
+    const key = body.keys?.find((entry) => entry.kid === kid);
+    if (!key) {
+      return null;
+    }
+
+    const keyObject = createPublicKey({ key, format: 'jwk' });
+    const pem = keyObject.export({ type: 'spki', format: 'pem' }).toString();
+    ed25519KeyCache.set(cacheKey, pem);
+    return pem;
+  }
+
+  private buildFalPayload(rawBody: string, request: Request): string {
+    const requestIdHeader = this.config.customConfig?.requestIdHeader || 'x-fal-request-id';
+    const userIdHeader = this.config.customConfig?.userIdHeader || 'x-fal-user-id';
+    const timestampHeader = this.config.customConfig?.timestampHeader || 'x-fal-webhook-timestamp';
+
+    const requestId = request.headers.get(requestIdHeader) || '';
+    const userId = request.headers.get(userIdHeader) || '';
+    const timestamp = request.headers.get(timestampHeader) || '';
+    const bodyHash = createHash('sha256').update(rawBody).digest('hex');
+
+    return `${requestId}.${userId}.${timestamp}.${bodyHash}`;
+  }
+
+  async verify(request: Request): Promise<WebhookVerificationResult> {
+    try {
+      const signature = this.extractSignature(request);
+      if (!signature) {
+        return {
+          isValid: false,
+          error: `Missing signature header: ${this.config.headerName}`,
+          errorCode: 'MISSING_SIGNATURE',
+          platform: this.platform,
+        };
+      }
+
+      const rawBody = await request.text();
+      const payload = this.platform === 'falai'
+        ? this.buildFalPayload(rawBody, request)
+        : this.formatPayload(rawBody, request);
+
+      const publicKey = await this.resolvePublicKey(request);
+      if (!publicKey) {
+        return {
+          isValid: false,
+          error: 'Missing public key for ED25519 verification',
+          errorCode: 'VERIFICATION_ERROR',
+          platform: this.platform,
+        };
+      }
+
+      const signatureBytes = new Uint8Array(Buffer.from(signature, 'base64'));
+      const keyObject = createPublicKey(publicKey);
+      const payloadBytes = new Uint8Array(Buffer.from(payload));
+      const isValid = verifySignature(null, payloadBytes, keyObject, signatureBytes);
+
+      if (!isValid) {
+        return {
+          isValid: false,
+          error: 'Invalid signature',
+          errorCode: 'INVALID_SIGNATURE',
+          platform: this.platform,
+        };
+      }
+
+      let parsedPayload;
+      try {
+        parsedPayload = JSON.parse(rawBody);
+      } catch (e) {
+        parsedPayload = rawBody;
+      }
+
+      return {
+        isValid: true,
+        platform: this.platform,
+        payload: parsedPayload,
+        metadata: {
+          algorithm: this.config.algorithm,
+          requestId: request.headers.get(this.config.customConfig?.requestIdHeader || 'x-fal-request-id'),
+          userId: request.headers.get(this.config.customConfig?.userIdHeader || 'x-fal-user-id'),
+          timestamp: request.headers.get(this.config.customConfig?.timestampHeader || 'x-fal-webhook-timestamp') || undefined,
+        },
+      };
+    } catch (error) {
+      return {
+        isValid: false,
+        error: `${this.platform} verification error: ${(error as Error).message}`,
+        errorCode: 'VERIFICATION_ERROR',
+        platform: this.platform,
+      };
+    }
+  }
+}
+
 export class HMACSHA256Verifier extends GenericHMACVerifier {
   constructor(
     secret: string,
@@ -357,7 +479,6 @@ export class HMACSHA512Verifier extends GenericHMACVerifier {
   }
 }
 
-// Factory function to create verifiers based on algorithm
 export function createAlgorithmVerifier(
   secret: string,
   config: SignatureConfig,
@@ -368,16 +489,11 @@ export function createAlgorithmVerifier(
     case 'hmac-sha256':
     case 'hmac-sha1':
     case 'hmac-sha512':
-      return new GenericHMACVerifier(
-        secret,
-        config,
-        platform,
-        toleranceInSeconds,
-      );
-    case 'rsa-sha256':
+      return new GenericHMACVerifier(secret, config, platform, toleranceInSeconds);
     case 'ed25519':
+      return new Ed25519Verifier(secret, config, platform, toleranceInSeconds);
+    case 'rsa-sha256':
     case 'custom':
-      // These can be implemented as needed
       throw new Error(`Algorithm ${config.algorithm} not yet implemented`);
     default:
       throw new Error(`Unknown algorithm: ${config.algorithm}`);

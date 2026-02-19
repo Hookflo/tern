@@ -1,4 +1,4 @@
-import { createHmac } from 'crypto';
+import { createHmac, createHash, generateKeyPairSync, sign } from 'crypto';
 import { WebhookVerificationService, getPlatformsByCategory } from './index';
 
 const testSecret = 'whsec_test_secret_key_12345';
@@ -41,6 +41,41 @@ function createClerkSignature(body: string, secret: string, id: string, timestam
   const hmac = createHmac('sha256', secretBytes);
   hmac.update(signedContent);
   return `v1,${hmac.digest('base64')}`;
+}
+
+function createStandardWebhooksSignature(body: string, secret: string, id: string, timestamp: number): string {
+  const signedContent = `${id}.${timestamp}.${body}`;
+  const base64Secret = secret.includes('_') ? secret.split('_')[1] : secret;
+  const secretBytes = new Uint8Array(Buffer.from(base64Secret, 'base64'));
+  const hmac = createHmac('sha256', secretBytes);
+  hmac.update(signedContent);
+  return `v1,${hmac.digest('base64')}`;
+}
+
+function createPaddleSignature(body: string, secret: string, timestamp: number): string {
+  const signedPayload = `${timestamp}:${body}`;
+  const hmac = createHmac('sha256', secret);
+  hmac.update(signedPayload);
+  return `ts=${timestamp};h1=${hmac.digest('hex')}`;
+}
+
+function createWooCommerceSignature(body: string, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(body);
+  return hmac.digest('base64');
+}
+
+
+function createWorkOSSignature(body: string, secret: string, timestamp: number): string {
+  const signedPayload = `${timestamp}.${body}`;
+  const hmac = createHmac('sha256', secret);
+  hmac.update(signedPayload);
+  return `t=${timestamp},v1=${hmac.digest('hex')}`;
+}
+
+function createFalPayloadToSign(body: string, requestId: string, userId: string, timestamp: string): string {
+  const bodyHash = createHash('sha256').update(body).digest('hex');
+  return `${requestId}.${userId}.${timestamp}.${bodyHash}`;
 }
 
 async function runTests() {
@@ -391,6 +426,171 @@ try {
     console.log('   ✅ Category registry:', hasStripeAndPolar ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ Category registry test failed:', error);
+  }
+
+  // Test 13: Razorpay
+  console.log('\n13. Testing Razorpay webhook...');
+  try {
+    const hmac = createHmac('sha256', testSecret);
+    hmac.update(testBody);
+    const signature = hmac.digest('hex');
+
+    const request = createMockRequest({
+      'x-razorpay-signature': signature,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'razorpay', testSecret);
+    console.log('   ✅ Razorpay:', result.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Razorpay test failed:', error);
+  }
+
+  // Test 14: Lemon Squeezy
+  console.log('\n14. Testing Lemon Squeezy webhook...');
+  try {
+    const hmac = createHmac('sha256', testSecret);
+    hmac.update(testBody);
+    const signature = hmac.digest('hex');
+
+    const request = createMockRequest({
+      'x-signature': signature,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'lemonsqueezy', testSecret);
+    console.log('   ✅ Lemon Squeezy:', result.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Lemon Squeezy test failed:', error);
+  }
+
+  // Test 15: Paddle
+  console.log('\n15. Testing Paddle webhook...');
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createPaddleSignature(testBody, testSecret, timestamp);
+    const request = createMockRequest({
+      'paddle-signature': signature,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'paddle', testSecret);
+    console.log('   ✅ Paddle:', result.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Paddle test failed:', error);
+  }
+
+  // Test 16: Auth0
+  console.log('\n16. Testing Auth0 webhook...');
+  try {
+    const hmac = createHmac('sha256', testSecret);
+    hmac.update(testBody);
+    const signature = hmac.digest('hex');
+    const request = createMockRequest({
+      'x-auth0-signature': signature,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'auth0', testSecret);
+    console.log('   ✅ Auth0:', result.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Auth0 test failed:', error);
+  }
+
+  // Test 17: WorkOS
+  console.log('\n17. Testing WorkOS webhook...');
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createWorkOSSignature(testBody, testSecret, timestamp);
+    const request = createMockRequest({
+      'workos-signature': signature,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'workos', testSecret);
+    console.log('   ✅ WorkOS:', result.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ WorkOS test failed:', error);
+  }
+
+  // Test 18: WooCommerce
+  console.log('\n18. Testing WooCommerce webhook...');
+  try {
+    const signature = createWooCommerceSignature(testBody, testSecret);
+    const request = createMockRequest({
+      'x-wc-webhook-signature': signature,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'woocommerce', testSecret);
+    console.log('   ✅ WooCommerce:', result.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ WooCommerce test failed:', error);
+  }
+
+  // Test 19: Replicate
+  console.log('\n19. Testing Replicate webhook...');
+  try {
+    const secret = `whsec_${Buffer.from(testSecret).toString('base64')}`;
+    const webhookId = 'replicate-webhook-id-1';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const signature = createStandardWebhooksSignature(testBody, secret, webhookId, timestamp);
+    const request = createMockRequest({
+      'webhook-signature': signature,
+      'webhook-id': webhookId,
+      'webhook-timestamp': timestamp.toString(),
+      'user-agent': 'Replicate-Webhooks/1.0',
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'replicateai', secret);
+    console.log('   ✅ Replicate:', result.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Replicate test failed:', error);
+  }
+
+  // Test 20: fal.ai
+  console.log('\n20. Testing fal.ai webhook...');
+  try {
+    const { privateKey, publicKey } = generateKeyPairSync('ed25519');
+    const requestId = 'fal-request-id';
+    const userId = 'fal-user-id';
+    const timestamp = Math.floor(Date.now() / 1000).toString();
+    const payloadToSign = createFalPayloadToSign(testBody, requestId, userId, timestamp);
+    const payloadBytes = new Uint8Array(Buffer.from(payloadToSign));
+    const signature = sign(null, payloadBytes, privateKey).toString('base64');
+
+    const request = createMockRequest({
+      'x-fal-webhook-signature': signature,
+      'x-fal-request-id': requestId,
+      'x-fal-user-id': userId,
+      'x-fal-webhook-timestamp': timestamp,
+      'content-type': 'application/json',
+    });
+
+    const result = await WebhookVerificationService.verify(
+      request,
+      {
+        platform: 'falai',
+        secret: '',
+        signatureConfig: {
+          algorithm: 'ed25519',
+          headerName: 'x-fal-webhook-signature',
+          headerFormat: 'raw',
+          payloadFormat: 'custom',
+          customConfig: {
+            publicKey: publicKey.export({ type: 'spki', format: 'pem' }).toString(),
+            requestIdHeader: 'x-fal-request-id',
+            userIdHeader: 'x-fal-user-id',
+            timestampHeader: 'x-fal-webhook-timestamp',
+          },
+        },
+      },
+    );
+
+    console.log('   ✅ fal.ai:', result.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ fal.ai test failed:', error);
   }
 
   console.log('\n🎉 All tests completed!');

@@ -9,6 +9,14 @@ export type WebhookPlatform =
   | 'polar'
   | 'dodopayments'
   | 'gitlab'
+  | 'paddle'
+  | 'razorpay'
+  | 'lemonsqueezy'
+  | 'auth0'
+  | 'workos'
+  | 'woocommerce'
+  | 'replicateai'
+  | 'falai'
   | 'unknown';
 
 export enum WebhookPlatformKeys {
@@ -21,6 +29,14 @@ export enum WebhookPlatformKeys {
   Polar = 'polar',
   Supabase = 'supabase',
   GitLab = 'gitlab',
+  Paddle = 'paddle',
+  Razorpay = 'razorpay',
+  LemonSqueezy = 'lemonsqueezy',
+  Auth0 = 'auth0',
+  WorkOS = 'workos',
+  WooCommerce = 'woocommerce',
+  ReplicateAI = 'replicateai',
+  FalAI = 'falai',
   Custom = 'custom',
   Unknown = 'unknown'
 }
