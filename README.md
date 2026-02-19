@@ -369,6 +369,53 @@ export default {
 };
 ```
 
+## AI-assisted semantic normalization
+
+Tern now supports layered normalization:
+
+1. Built-in category normalization (payment/auth/infrastructure)
+2. Raw payload retention (`_raw`) for zero data loss
+3. Semantic extraction with manual fallbacks (`_semantic`)
+
+```typescript
+const result = await WebhookVerificationService.verifyWithPlatformConfig(
+  request,
+  'stripe',
+  process.env.STRIPE_WEBHOOK_SECRET!,
+  300,
+  {
+    includeRaw: true,
+    semantic: {
+      ai: {
+        // Provider failover order
+        providers: ['groq', 'cohere', 'openai', 'anthropic', 'google'],
+        minimumConfidence: 0.75,
+      },
+      fields: {
+        customer_email: {
+          description: 'email of the customer who paid',
+          // fallback dot-path if AI is unavailable / low confidence
+          fallback: 'data.object.billing_details.email',
+        },
+      },
+    },
+  },
+);
+
+const email = (result.payload as any)._semantic?.fields.customer_email;
+const meta = (result.payload as any)._semantic?.meta.customer_email;
+// meta.source: 'ai' | 'manual' | 'missing'
+```
+
+Provider env vars supported for AI extraction:
+- `GROQ_API_KEY`
+- `COHERE_API_KEY`
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `GOOGLE_GENERATIVE_AI_API_KEY`
+
+If no provider is configured (or AI confidence is too low), Tern automatically falls back to manual field mapping paths.
+
 ## API Reference
 
 ### WebhookVerificationService
@@ -545,4 +592,3 @@ export const POST = createWebhookHandler({
   handler: async (payload) => ({ received: true, event: payload.event ?? payload.type }),
 });
 ```
-

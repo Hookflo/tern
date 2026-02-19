@@ -63,6 +63,38 @@ export interface BaseNormalizedWebhook {
   _platform: WebhookPlatform | string;
   _raw: unknown;
   occurred_at?: string;
+  _semantic?: SemanticNormalizationResult;
+}
+
+export type SemanticAIProvider = 'groq' | 'cohere' | 'openai' | 'anthropic' | 'google';
+
+export interface SemanticFieldConfig {
+  description?: string;
+  fallback?: string | string[];
+  required?: boolean;
+}
+
+export interface SemanticFieldMeta {
+  source: 'ai' | 'manual' | 'missing';
+  sourceField?: string;
+  confidence: number;
+  reasoning?: string;
+}
+
+export interface SemanticNormalizationResult {
+  fields: Record<string, unknown>;
+  meta: Record<string, SemanticFieldMeta>;
+}
+
+export interface SemanticAIOptions {
+  enabled?: boolean;
+  minimumConfidence?: number;
+  providers?: SemanticAIProvider[];
+}
+
+export interface SemanticNormalizeOptions {
+  fields: Record<string, string | SemanticFieldConfig>;
+  ai?: SemanticAIOptions;
 }
 
 export type PaymentWebhookEvent =
@@ -145,6 +177,7 @@ export interface NormalizeOptions {
   enabled?: boolean;
   category?: NormalizationCategory;
   includeRaw?: boolean;
+  semantic?: SemanticNormalizeOptions;
 }
 
 export interface WebhookVerificationResult<TPayload = unknown> {
