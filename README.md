@@ -210,6 +210,14 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 
 ### Other Platforms
 - **Dodo Payments**: HMAC-SHA256
+- **Paddle**: HMAC-SHA256
+- **Razorpay**: HMAC-SHA256
+- **Lemon Squeezy**: HMAC-SHA256
+- **Auth0**: HMAC-SHA256
+- **WorkOS**: HMAC-SHA256 (`workos-signature`, `t/v1`)
+- **WooCommerce**: HMAC-SHA256 (base64 signature)
+- **ReplicateAI**: HMAC-SHA256 (Standard Webhooks style)
+- **fal.ai**: ED25519 (`x-fal-webhook-signature`)
 - **Shopify**: HMAC-SHA256
 - **Vercel**: HMAC-SHA256
 - **Polar**: HMAC-SHA256
@@ -367,6 +375,58 @@ export default {
     return new Response('Not Found', { status: 404 });
   },
 };
+```
+
+
+### Are new platforms available in framework middlewares automatically?
+
+Yes. All built-in platforms are available in:
+- `createWebhookMiddleware` (`@hookflo/tern/express`)
+- `createWebhookHandler` (`@hookflo/tern/nextjs`)
+- `createWebhookHandler` (`@hookflo/tern/cloudflare`)
+
+You only change `platform` and `secret` per route.
+
+### Platform route examples (Express / Next.js / Cloudflare)
+
+```typescript
+// Express (Razorpay)
+app.post('/webhooks/razorpay', createWebhookMiddleware({
+  platform: 'razorpay',
+  secret: process.env.RAZORPAY_WEBHOOK_SECRET!,
+}), (req, res) => res.json({ ok: true }));
+
+// Next.js (WorkOS)
+export const POST = createWebhookHandler({
+  platform: 'workos',
+  secret: process.env.WORKOS_WEBHOOK_SECRET!,
+  handler: async (payload) => ({ received: true, type: payload.type }),
+});
+
+// Cloudflare (Lemon Squeezy)
+const handleLemonSqueezy = createWebhookHandler({
+  platform: 'lemonsqueezy',
+  secretEnv: 'LEMON_SQUEEZY_WEBHOOK_SECRET',
+  handler: async () => ({ received: true }),
+});
+```
+
+### fal.ai production usage
+
+fal.ai uses **ED25519** (`x-fal-webhook-signature`) and signs:
+`{request-id}.{user-id}.{timestamp}.{sha256(body)}`.
+
+Use one of these strategies:
+1. **Public key as `secret`** (recommended for framework adapters).
+2. **JWKS auto-resolution** via the built-in fal.ai config (`x-fal-webhook-key-id` + fal JWKS URL).
+
+```typescript
+// Next.js with explicit public key PEM as secret
+export const POST = createWebhookHandler({
+  platform: 'falai',
+  secret: process.env.FAL_PUBLIC_KEY_PEM!,
+  handler: async (payload, metadata) => ({ received: true, requestId: metadata.requestId }),
+});
 ```
 
 ## API Reference
@@ -545,4 +605,3 @@ export const POST = createWebhookHandler({
   handler: async (payload) => ({ received: true, event: payload.event ?? payload.type }),
 });
 ```
-

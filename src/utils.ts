@@ -109,8 +109,40 @@ export function detectPlatformFromHeaders(headers: Headers): WebhookPlatform | n
   }
 
   // Dodo Payments
+  if (headerMap.has('workos-signature')) {
+    return 'workos';
+  }
+
   if (headerMap.has('webhook-signature')) {
+    const userAgent = headerMap.get('user-agent') || '';
+    if (userAgent.includes('replicate')) {
+      return 'replicateai';
+    }
     return 'dodopayments';
+  }
+
+  if (headerMap.has('paddle-signature')) {
+    return 'paddle';
+  }
+
+  if (headerMap.has('x-razorpay-signature')) {
+    return 'razorpay';
+  }
+
+  if (headerMap.has('x-signature')) {
+    return 'lemonsqueezy';
+  }
+
+  if (headerMap.has('x-auth0-signature')) {
+    return 'auth0';
+  }
+
+  if (headerMap.has('x-wc-webhook-signature')) {
+    return 'woocommerce';
+  }
+
+  if (headerMap.has('x-fal-signature') || headerMap.has('x-fal-webhook-signature')) {
+    return 'falai';
   }
 
   // Shopify
