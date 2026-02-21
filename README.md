@@ -193,7 +193,7 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 
 ## Supported Platforms
 
-### Stripe
+### Stripe OK Tested
 - **Signature Format**: `t={timestamp},v1={signature}`
 - **Algorithm**: HMAC-SHA256
 - **Payload Format**: `{timestamp}.{body}`
@@ -209,20 +209,20 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 - **Payload Format**: `{id}.{timestamp}.{body}`
 
 ### Other Platforms
-- **Dodo Payments**: HMAC-SHA256
-- **Paddle**: HMAC-SHA256
-- **Razorpay**: HMAC-SHA256
-- **Lemon Squeezy**: HMAC-SHA256
-- **Auth0**: HMAC-SHA256
-- **WorkOS**: HMAC-SHA256 (`workos-signature`, `t/v1`)
-- **WooCommerce**: HMAC-SHA256 (base64 signature)
-- **ReplicateAI**: HMAC-SHA256 (Standard Webhooks style)
+- **Dodo Payments**: HMAC-SHA256 OK Tested
+- **Paddle**: HMAC-SHA256 OK Tested
+- **Razorpay**: HMAC-SHA256 Pending
+- **Lemon Squeezy**: HMAC-SHA256 OK Tested
+- **Auth0**: HMAC-SHA256 Pending
+- **WorkOS**: HMAC-SHA256 (`workos-signature`, `t/v1`) OK Tested
+- **WooCommerce**: HMAC-SHA256 (base64 signature) Pending
+- **ReplicateAI**: HMAC-SHA256 (Standard Webhooks style) OK Tested
 - **fal.ai**: ED25519 (`x-fal-webhook-signature`)
-- **Shopify**: HMAC-SHA256 (base64 signature)
-- **Vercel**: HMAC-SHA256
-- **Polar**: HMAC-SHA256
-- **Supabase**: Token-based authentication
-- **GitLab**: Token-based authentication 
+- **Shopify**: HMAC-SHA256 (base64 signature) OK Tested
+- **Vercel**: HMAC-SHA256 Pending
+- **Polar**: HMAC-SHA256 OK Tested
+- **Supabase**: Token-based authentication Pending
+- **GitLab**: Token-based authentication OK Tested
 
 ## Custom Platform Configuration
 

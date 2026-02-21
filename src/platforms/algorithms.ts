@@ -130,12 +130,12 @@ export const platformAlgorithmConfigs: Record<
     platform: "supabase",
     signatureConfig: {
       algorithm: "custom",
-      headerName: "x-webhook-token",
+      headerName: "x-supabase-token",
       headerFormat: "raw",
       payloadFormat: "raw",
       customConfig: {
         type: "token-based",
-        idHeader: "x-webhook-id",
+        idHeader: "x-supabase-token",
       },
     },
     description: "Supabase webhooks use token-based authentication",
@@ -270,15 +270,14 @@ export const platformAlgorithmConfigs: Record<
       headerFormat: "raw",
       payloadFormat: "custom",
       customConfig: {
-        requestIdHeader: "x-fal-request-id",
-        userIdHeader: "x-fal-user-id",
+        requestIdHeader: "x-fal-webhook-request-id",
+        userIdHeader: "x-fal-webhook-user-id",
         timestampHeader: "x-fal-webhook-timestamp",
-        kidHeader: "x-fal-webhook-key-id",
         jwksUrl: "https://rest.alpha.fal.ai/.well-known/jwks.json",
       },
     },
     description:
-      "fal.ai webhooks use ED25519 with a signed request/user/timestamp/body-hash payload",
+      "fal.ai webhooks use ED25519 with JWKS key verification. No secret required — pass empty string.",
   },
 
   custom: {
