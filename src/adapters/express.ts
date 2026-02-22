@@ -1,6 +1,10 @@
-import { WebhookPlatform, WebhookVerificationResult, NormalizeOptions } from '../types';
-import { WebhookVerificationService } from '../index';
-import { toWebRequest, MinimalNodeRequest } from './shared';
+import {
+  WebhookPlatform,
+  WebhookVerificationResult,
+  NormalizeOptions,
+} from "../types";
+import { WebhookVerificationService } from "../index";
+import { toWebRequest, MinimalNodeRequest } from "./shared";
 
 export interface ExpressLikeResponse {
   status: (code: number) => ExpressLikeResponse;
@@ -11,7 +15,7 @@ export interface ExpressLikeRequest extends MinimalNodeRequest {
   webhook?: WebhookVerificationResult;
 }
 
-export type ExpressLikeNext = () => void;
+export type ExpressLikeNext = (err?: unknown) => void;
 
 export interface ExpressWebhookMiddlewareOptions {
   platform: WebhookPlatform;
@@ -21,7 +25,9 @@ export interface ExpressWebhookMiddlewareOptions {
   onError?: (error: Error) => void;
 }
 
-export function createWebhookMiddleware(options: ExpressWebhookMiddlewareOptions) {
+export function createWebhookMiddleware(
+  options: ExpressWebhookMiddlewareOptions,
+) {
   return async (
     req: ExpressLikeRequest,
     res: ExpressLikeResponse,
@@ -39,7 +45,12 @@ export function createWebhookMiddleware(options: ExpressWebhookMiddlewareOptions
       );
 
       if (!result.isValid) {
-        res.status(400).json({ error: result.error, errorCode: result.errorCode, platform: result.platform, metadata: result.metadata });
+        res.status(400).json({
+          error: result.error,
+          errorCode: result.errorCode,
+          platform: result.platform,
+          metadata: result.metadata,
+        });
         return;
       }
 
@@ -47,7 +58,7 @@ export function createWebhookMiddleware(options: ExpressWebhookMiddlewareOptions
       next();
     } catch (error) {
       options.onError?.(error as Error);
-      res.status(500).json({ error: (error as Error).message });
+      next(error);
     }
   };
 }
