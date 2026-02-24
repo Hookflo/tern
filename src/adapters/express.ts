@@ -2,9 +2,9 @@ import {
   WebhookPlatform,
   WebhookVerificationResult,
   NormalizeOptions,
-} from "../types";
-import { WebhookVerificationService } from "../index";
-import { toWebRequest, MinimalNodeRequest } from "./shared";
+} from '../types';
+import { WebhookVerificationService } from '../index';
+import { toWebRequest, MinimalNodeRequest } from './shared';
 
 export interface ExpressLikeResponse {
   status: (code: number) => ExpressLikeResponse;

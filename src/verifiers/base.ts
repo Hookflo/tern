@@ -1,5 +1,5 @@
-import { timingSafeEqual } from "crypto";
-import { WebhookVerificationResult } from "../types";
+import { timingSafeEqual } from 'crypto';
+import { WebhookVerificationResult } from '../types';
 
 export abstract class WebhookVerifier {
   protected secret: string;
@@ -16,11 +16,10 @@ export abstract class WebhookVerifier {
   protected isTimestampValid(timestamp: number): boolean {
     const now = Math.floor(Date.now() / 1000);
     // WorkOS sends milliseconds — auto-detect by magnitude
-    const timestampInSeconds =
-      timestamp > 1e12 ? Math.floor(timestamp / 1000) : timestamp;
+    const timestampInSeconds = timestamp > 1e12 ? Math.floor(timestamp / 1000) : timestamp;
     return Math.abs(now - timestampInSeconds) <= this.toleranceInSeconds;
   }
-  
+
   protected safeCompare(a: string, b: string): boolean {
     if (a.length !== b.length) {
       return false;

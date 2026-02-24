@@ -7,7 +7,7 @@ export interface NextWebhookHandlerOptions<TResponse = unknown> {
   toleranceInSeconds?: number;
   normalize?: boolean | NormalizeOptions;
   onError?: (error: Error) => void;
-  handler: (payload: any, metadata: Record<string, any>) => Promise<TResponse> | TResponse;
+  handler: (payload: unknown, metadata: Record<string, unknown>) => Promise<TResponse> | TResponse;
 }
 
 export function createWebhookHandler<TResponse = unknown>(

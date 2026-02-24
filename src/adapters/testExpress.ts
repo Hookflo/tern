@@ -1,20 +1,19 @@
-import crypto from "crypto";
-import { toWebRequest } from "./shared";
-import WebhookVerificationService from "..";
+import crypto from 'crypto';
+import { toWebRequest } from './shared';
+import WebhookVerificationService from '..';
 
-const secret = "whsec_test_secret";
+const secret = 'whsec_test_secret';
 
-const payload =
-  JSON.stringify({ type: "payment_intent.succeeded", data: { amount: 2000 } }) +
-  "\n";
+const payload = `${JSON.stringify({ type: 'payment_intent.succeeded', data: { amount: 2000 } })
+}\n`;
 
 function buildStripeSignature(body: string, secret: string): string {
   const timestamp = Math.floor(Date.now() / 1000);
   const signed = `${timestamp}.${body}`;
   const hmac = crypto
-    .createHmac("sha256", secret.replace("whsec_", ""))
+    .createHmac('sha256', secret.replace('whsec_', ''))
     .update(signed)
-    .digest("hex");
+    .digest('hex');
   return `t=${timestamp},v1=${hmac}`;
 }
 
@@ -22,20 +21,20 @@ function buildStripeSignature(body: string, secret: string): string {
 async function testRawStream() {
   const sig = buildStripeSignature(payload, secret); // ✓ fixed: was missing secret arg
 
-  const chunks = [Buffer.from(payload, "utf8")];
+  const chunks = [Buffer.from(payload, 'utf8')];
 
   const req = {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "stripe-signature": sig,
-      "content-type": "application/json",
+      'stripe-signature': sig,
+      'content-type': 'application/json',
     },
     body: undefined,
     on: (event: string, cb: (chunk?: unknown) => void) => {
-      if (event === "data") {
+      if (event === 'data') {
         for (const chunk of chunks) cb(chunk);
       }
-      if (event === "end") {
+      if (event === 'end') {
         cb();
       }
     },
@@ -44,12 +43,12 @@ async function testRawStream() {
   const webReq = await toWebRequest(req as any);
   const result = await WebhookVerificationService.verifyWithPlatformConfig(
     webReq,
-    "stripe",
+    'stripe',
     secret,
   );
   console.log(
-    "Test 1 Raw stream (no middleware):",
-    result.isValid ? "✓ PASS" : `✗ FAIL — ${result.error}`,
+    'Test 1 Raw stream (no middleware):',
+    result.isValid ? '✓ PASS' : `✗ FAIL — ${result.error}`,
   );
 }
 
@@ -58,23 +57,23 @@ async function testBufferBody() {
   const sig = buildStripeSignature(payload, secret);
 
   const req = {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "content-type": "application/json",
-      "stripe-signature": sig,
+      'content-type': 'application/json',
+      'stripe-signature': sig,
     },
-    body: Buffer.from(payload, "utf8"),
+    body: Buffer.from(payload, 'utf8'),
   };
 
   const webReq = await toWebRequest(req as any);
   const result = await WebhookVerificationService.verifyWithPlatformConfig(
     webReq,
-    "stripe",
+    'stripe',
     secret,
   );
   console.log(
-    "Test 2 Buffer body (express.raw):",
-    result.isValid ? "✓ PASS" : `✗ FAIL — ${result.error}`,
+    'Test 2 Buffer body (express.raw):',
+    result.isValid ? '✓ PASS' : `✗ FAIL — ${result.error}`,
   );
 }
 
@@ -84,10 +83,10 @@ async function testParsedObject() {
   const sig = buildStripeSignature(payload, secret);
 
   const req = {
-    method: "POST",
+    method: 'POST',
     headers: {
-      "content-type": "application/json",
-      "stripe-signature": sig,
+      'content-type': 'application/json',
+      'stripe-signature': sig,
     },
     body: JSON.parse(payload), // \n gone, bytes lost
   };
@@ -95,13 +94,13 @@ async function testParsedObject() {
   const webReq = await toWebRequest(req as any);
   const result = await WebhookVerificationService.verifyWithPlatformConfig(
     webReq,
-    "stripe",
+    'stripe',
     secret,
   );
   // should FAIL — \n was in original signature but lost after JSON.parse
   console.log(
-    "Test 3 Parsed object (express.json):",
-    !result.isValid ? "✓ FAILS AS EXPECTED" : "✗ SHOULD HAVE FAILED",
+    'Test 3 Parsed object (express.json):',
+    !result.isValid ? '✓ FAILS AS EXPECTED' : '✗ SHOULD HAVE FAILED',
   );
 }
 
@@ -109,7 +108,7 @@ async function run() {
   await testRawStream(); // no middleware      → should PASS
   await testBufferBody(); // express.raw()      → should PASS
   await testParsedObject(); // express.json()     → should FAIL as expected
-  console.log("\nDone. Test 3 failing is correct behavior.");
+  console.log('\nDone. Test 3 failing is correct behavior.');
 }
 
 run();

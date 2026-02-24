@@ -8,7 +8,7 @@ export interface CloudflareWebhookHandlerOptions<TEnv = Record<string, unknown>,
   toleranceInSeconds?: number;
   normalize?: boolean | NormalizeOptions;
   onError?: (error: Error) => void;
-  handler: (payload: any, env: TEnv, metadata: Record<string, any>) => Promise<TResponse> | TResponse;
+  handler: (payload: unknown, env: TEnv, metadata: Record<string, unknown>) => Promise<TResponse> | TResponse;
 }
 
 export function createWebhookHandler<TEnv = Record<string, unknown>, TResponse = unknown>(
@@ -17,7 +17,7 @@ export function createWebhookHandler<TEnv = Record<string, unknown>, TResponse =
   return async (request: Request, env: TEnv): Promise<Response> => {
     try {
       const secret = options.secret
-        || (options.secretEnv ? (env as any)[options.secretEnv] : undefined);
+        || (options.secretEnv ? (env as Record<string, string | undefined>)[options.secretEnv] : undefined);
 
       if (!secret) {
         return Response.json({ error: 'Webhook secret is not configured' }, { status: 500 });
