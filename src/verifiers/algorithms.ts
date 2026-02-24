@@ -66,11 +66,9 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
       case "comma-separated": {
         const sigMap = this.parseDelimitedHeader(headerValue);
         const signatureKey = this.config.customConfig?.signatureKey || "v1";
-        return [
-          sigMap[signatureKey],
-          sigMap.signature,
-          sigMap.v1,
-        ].filter((value): value is string => Boolean(value));
+        return [sigMap[signatureKey], sigMap.signature, sigMap.v1].filter(
+          (value): value is string => Boolean(value),
+        );
       }
       case "raw":
       default:
@@ -241,15 +239,18 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     algorithm: string = "sha256",
   ): boolean {
     const secretEncoding = this.config.customConfig?.secretEncoding || "base64";
-
     let secretMaterial: string | Uint8Array = this.secret;
+
     if (secretEncoding === "base64") {
-      const base64Secret = this.secret.includes("_")
-        ? this.secret.split("_").slice(1).join("_")
-        : this.secret;
-      secretMaterial = new Uint8Array(Buffer.from(base64Secret, "base64"));
+      let rawSecret = this.secret;
+      
+      const lastUnderscore = rawSecret.lastIndexOf("_");
+      if (lastUnderscore !== -1) {
+        rawSecret = rawSecret.slice(lastUnderscore + 1);
+      }
+
+      secretMaterial = new Uint8Array(Buffer.from(rawSecret, "base64"));
     }
-    // 'utf8', 'raw', or anything else → use secret as-is
 
     const hmac = createHmac(algorithm, secretMaterial);
     hmac.update(payload);
