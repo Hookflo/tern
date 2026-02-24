@@ -149,11 +149,27 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
         this.config.customConfig.idHeader || "x-webhook-id",
       );
       const timestamp = request.headers.get(
-        this.config.timestampHeader || "x-webhook-timestamp",
+        this.config.timestampHeader ||
+          this.config.customConfig?.timestampHeader ||
+          "x-webhook-timestamp",
       );
+
+      // if either is missing payload will be malformed — fail explicitly
+      if (!id || !timestamp) {
+        throw new Error(
+          `Missing required headers for payload construction: ${
+            !id ? this.config.customConfig.idHeader || "x-webhook-id" : ""
+          } ${
+            !timestamp
+              ? this.config.timestampHeader || "x-webhook-timestamp"
+              : ""
+          }`.trim(),
+        );
+      }
+
       return customFormat
-        .replace("{id}", id || "")
-        .replace("{timestamp}", timestamp || "")
+        .replace("{id}", id.trim() || "")
+        .replace("{timestamp}", timestamp.trim() || "")
         .replace("{body}", rawBody);
     }
 
@@ -254,7 +270,9 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
       case "sentry":
       case "sanity":
         metadata.id = request.headers.get(
-          this.config.idHeader || this.config.customConfig?.idHeader || "webhook-id",
+          this.config.idHeader ||
+            this.config.customConfig?.idHeader ||
+            "webhook-id",
         );
         break;
       default:
@@ -269,8 +287,14 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 }
 
 export class GenericHMACVerifier extends AlgorithmBasedVerifier {
-  private resolveSentryPayloadCandidates(rawBody: string, request: Request): string[] {
-    const candidates: string[] = [this.formatPayload(rawBody, request), rawBody];
+  private resolveSentryPayloadCandidates(
+    rawBody: string,
+    request: Request,
+  ): string[] {
+    const candidates: string[] = [
+      this.formatPayload(rawBody, request),
+      rawBody,
+    ];
 
     if (this.config.payloadFormat === "json-stringified") {
       try {
@@ -368,7 +392,8 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
 
       const metadata = this.extractMetadata(request);
       if (this.platform === "doppler" && !metadata.id) {
-        const timestamp = metadata.timestamp || Math.floor(Date.now() / 1000).toString();
+        const timestamp =
+          metadata.timestamp || Math.floor(Date.now() / 1000).toString();
         metadata.id = createHash("sha256")
           .update(`${timestamp}:${rawBody}`)
           .digest("hex");
