@@ -123,6 +123,12 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
           this.extractTimestamp(request);
         return timestamp ? `${timestamp}.${rawBody}` : rawBody;
       }
+      case "json-stringified":
+        try {
+          return JSON.stringify(JSON.parse(rawBody));
+        } catch {
+          return rawBody;
+        }
       case "custom":
         return this.formatCustomPayload(rawBody, request);
       case "raw":
@@ -245,11 +251,16 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
         );
         break;
       case "workos":
+      case "sentry":
+      case "sanity":
         metadata.id = request.headers.get(
-          this.config.customConfig?.idHeader || "webhook-id",
+          this.config.idHeader || this.config.customConfig?.idHeader || "webhook-id",
         );
         break;
       default:
+        if (this.config.idHeader) {
+          metadata.id = request.headers.get(this.config.idHeader);
+        }
         break;
     }
 
@@ -258,6 +269,35 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 }
 
 export class GenericHMACVerifier extends AlgorithmBasedVerifier {
+  private resolveSentryPayloadCandidates(rawBody: string, request: Request): string[] {
+    const candidates: string[] = [this.formatPayload(rawBody, request), rawBody];
+
+    if (this.config.payloadFormat === "json-stringified") {
+      try {
+        const parsed = JSON.parse(rawBody) as Record<string, any>;
+        candidates.push(JSON.stringify(parsed));
+
+        const issueAlertPath = this.config.customConfig?.issueAlertPayloadPath;
+        if (issueAlertPath) {
+          const segments = `${issueAlertPath}`.split(".").filter(Boolean);
+          let current: any = parsed;
+          for (const segment of segments) {
+            current = current?.[segment];
+          }
+          if (current !== undefined) {
+            candidates.push(
+              typeof current === "string" ? current : JSON.stringify(current),
+            );
+          }
+        }
+      } catch {
+        // ignore malformed JSON payloads
+      }
+    }
+
+    return [...new Set(candidates.filter(Boolean))];
+  }
+
   async verify(request: Request): Promise<WebhookVerificationResult> {
     try {
       const signature = this.extractSignature(request);
@@ -288,17 +328,26 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         };
       }
 
-      const payload = this.formatPayload(rawBody, request);
+      const payloadCandidates =
+        this.platform === "sentry"
+          ? this.resolveSentryPayloadCandidates(rawBody, request)
+          : [this.formatPayload(rawBody, request)];
 
       let isValid = false;
       const algorithm = this.config.algorithm.replace("hmac-", "");
 
-      if (this.config.customConfig?.encoding === "base64") {
-        isValid = this.verifyHMACWithBase64(payload, signature, algorithm);
-      } else if (this.config.headerFormat === "prefixed") {
-        isValid = this.verifyHMACWithPrefix(payload, signature, algorithm);
-      } else {
-        isValid = this.verifyHMAC(payload, signature, algorithm);
+      for (const payload of payloadCandidates) {
+        if (this.config.customConfig?.encoding === "base64") {
+          isValid = this.verifyHMACWithBase64(payload, signature, algorithm);
+        } else if (this.config.headerFormat === "prefixed") {
+          isValid = this.verifyHMACWithPrefix(payload, signature, algorithm);
+        } else {
+          isValid = this.verifyHMAC(payload, signature, algorithm);
+        }
+
+        if (isValid) {
+          break;
+        }
       }
 
       if (!isValid) {
@@ -317,11 +366,19 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         parsedPayload = rawBody;
       }
 
+      const metadata = this.extractMetadata(request);
+      if (this.platform === "doppler" && !metadata.id) {
+        const timestamp = metadata.timestamp || Math.floor(Date.now() / 1000).toString();
+        metadata.id = createHash("sha256")
+          .update(`${timestamp}:${rawBody}`)
+          .digest("hex");
+      }
+
       return {
         isValid: true,
         platform: this.platform,
         payload: parsedPayload,
-        metadata: this.extractMetadata(request),
+        metadata,
       };
     } catch (error) {
       return {

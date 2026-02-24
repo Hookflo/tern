@@ -15,6 +15,10 @@ export type WebhookPlatform =
   | 'woocommerce'
   | 'replicateai'
   | 'falai'
+  | 'sentry'
+  | 'grafana'
+  | 'doppler'
+  | 'sanity'
   | 'unknown';
 
 export enum WebhookPlatformKeys {
@@ -33,6 +37,10 @@ export enum WebhookPlatformKeys {
   WooCommerce = 'woocommerce',
   ReplicateAI = 'replicateai',
   FalAI = 'falai',
+  Sentry = 'sentry',
+  Grafana = 'grafana',
+  Doppler = 'doppler',
+  Sanity = 'sanity',
   Custom = 'custom',
   Unknown = 'unknown'
 }
@@ -53,7 +61,8 @@ export interface SignatureConfig {
   prefix?: string; // e.g., "sha256=" for GitHub
   timestampHeader?: string;
   timestampFormat?: 'unix' | 'iso' | 'custom';
-  payloadFormat?: 'raw' | 'timestamped' | 'custom';
+  payloadFormat?: 'raw' | 'timestamped' | 'json-stringified' | 'custom';
+  idHeader?: string;
   customConfig?: Record<string, any>;
 }
 
