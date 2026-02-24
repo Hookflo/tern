@@ -126,21 +126,6 @@ export const platformAlgorithmConfigs: Record<
     description: "Polar webhooks use HMAC-SHA256 with Standard Webhooks format",
   },
 
-  supabase: {
-    platform: "supabase",
-    signatureConfig: {
-      algorithm: "custom",
-      headerName: "x-supabase-token",
-      headerFormat: "raw",
-      payloadFormat: "raw",
-      customConfig: {
-        type: "token-based",
-        idHeader: "x-supabase-token",
-      },
-    },
-    description: "Supabase webhooks use token-based authentication",
-  },
-
   gitlab: {
     platform: "gitlab",
     signatureConfig: {
@@ -153,7 +138,7 @@ export const platformAlgorithmConfigs: Record<
         idHeader: "X-Gitlab-Token",
       },
     },
-    description: "GitLab webhooks use HMAC-SHA256 with X-Gitlab-Token header",
+    description: "GitLab webhooks use token-based authentication via X-Gitlab-Token header",
   },
 
   paddle: {
@@ -195,17 +180,6 @@ export const platformAlgorithmConfigs: Record<
     },
     description:
       "Lemon Squeezy webhooks use HMAC-SHA256 with X-Signature header",
-  },
-
-  auth0: {
-    platform: "auth0",
-    signatureConfig: {
-      algorithm: "hmac-sha256",
-      headerName: "x-auth0-signature",
-      headerFormat: "raw",
-      payloadFormat: "raw",
-    },
-    description: "Auth0 webhooks use HMAC-SHA256 with X-Auth0-Signature header",
   },
 
   workos: {
@@ -284,7 +258,7 @@ export const platformAlgorithmConfigs: Record<
     platform: "custom",
     signatureConfig: {
       algorithm: "hmac-sha256",
-      headerName: "x-webhook-token",
+      headerName: "x-webhook-signature",
       headerFormat: "raw",
       payloadFormat: "raw",
       customConfig: {
@@ -292,7 +266,7 @@ export const platformAlgorithmConfigs: Record<
         idHeader: "x-webhook-id",
       },
     },
-    description: "Custom webhook configuration",
+    description: "Custom webhook configuration (supports token-based overrides via customConfig)",
   },
 
   unknown: {

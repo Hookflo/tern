@@ -1,7 +1,7 @@
 import { WebhookVerifier } from './base';
 import { WebhookVerificationResult, SignatureConfig } from '../types';
 
-// Token-based verifier for platforms like Supabase
+// Token-based verifier for providers that use header token authentication
 export class TokenBasedVerifier extends WebhookVerifier {
   private config: SignatureConfig;
 

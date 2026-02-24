@@ -105,7 +105,8 @@ async function runTests() {
       testSecret,
     );
 
-    console.log('   ✅ Stripe:', stripeResult.isValid ? 'PASSED' : 'FAILED');
+    const stripePassed = stripeResult.isValid && Boolean(stripeResult.eventId?.startsWith('stripe:'));
+    console.log('   ✅ Stripe:', stripePassed ? 'PASSED' : 'FAILED');
     if (!stripeResult.isValid) {
       console.log('   ❌ Error:', stripeResult.error);
     }
@@ -236,7 +237,7 @@ async function runTests() {
     console.log('   ❌ Dodo Payments test failed:', error);
   }
 
-  // Test 5: Token-based (Supabase)
+  // Test 5: Token-based authentication helper
   console.log('\n5. Testing Token-based Authentication...');
   try {
     const webhookId = 'test-webhook-id';
@@ -248,13 +249,22 @@ async function runTests() {
       'content-type': 'application/json',
     });
 
-    const tokenResult = await WebhookVerificationService.verifyTokenBased(
-      tokenRequest,
+    const tokenResult = await WebhookVerificationService.verifyTokenAuth(
+      tokenRequest.clone(),
       webhookId,
       webhookToken,
     );
 
-    console.log('   ✅ Token-based:', tokenResult.isValid ? 'PASSED' : 'FAILED');
+
+    const tokenAliasResult = await WebhookVerificationService.verifyTokenBased(
+      tokenRequest.clone(),
+      webhookId,
+      webhookToken,
+    );
+
+    const tokenPassed = tokenResult.isValid && tokenAliasResult.isValid;
+
+    console.log('   ✅ Token-based:', tokenPassed ? 'PASSED' : 'FAILED');
     if (!tokenResult.isValid) {
       console.log('   ❌ Error:', tokenResult.error);
     }
@@ -509,26 +519,8 @@ try {
   } catch (error) {
     console.log('   ❌ Paddle test failed:', error);
   }
-
-  // Test 16: Auth0
-  console.log('\n16. Testing Auth0 webhook...');
-  try {
-    const hmac = createHmac('sha256', testSecret);
-    hmac.update(testBody);
-    const signature = hmac.digest('hex');
-    const request = createMockRequest({
-      'x-auth0-signature': signature,
-      'content-type': 'application/json',
-    });
-
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'auth0', testSecret);
-    console.log('   ✅ Auth0:', result.isValid ? 'PASSED' : 'FAILED');
-  } catch (error) {
-    console.log('   ❌ Auth0 test failed:', error);
-  }
-
-  // Test 17: WorkOS
-  console.log('\n17. Testing WorkOS webhook...');
+  // Test 16: WorkOS
+  console.log('\n16. Testing WorkOS webhook...');
   try {
     const timestamp = Math.floor(Date.now() / 1000);
     const signature = createWorkOSSignature(testBody, testSecret, timestamp);
@@ -544,7 +536,7 @@ try {
   }
 
   // Test 17.5: Shopify
-  console.log('\n17.5. Testing Shopify webhook...');
+  console.log('\n17. Testing Shopify webhook...');
   try {
     const signature = createShopifySignature(testBody, testSecret);
     const request = createMockRequest({

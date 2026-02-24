@@ -5,8 +5,6 @@ const providers: ProviderInfo[] = [
   { id: 'razorpay', name: 'Razorpay', category: 'payment' },
   { id: 'paypal', name: 'PayPal', category: 'payment' },
   { id: 'clerk', name: 'Clerk', category: 'auth' },
-  { id: 'auth0', name: 'Auth0', category: 'auth' },
-  { id: 'supabase', name: 'Supabase', category: 'auth' },
   { id: 'shopify', name: 'Shopify', category: 'ecommerce' },
   { id: 'woocommerce', name: 'WooCommerce', category: 'ecommerce' },
 ];
