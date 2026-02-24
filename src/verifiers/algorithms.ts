@@ -56,31 +56,54 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     return values;
   }
 
-  protected extractSignature(request: Request): string | null {
+  protected extractSignatures(request: Request): string[] {
     const headerValue = request.headers.get(this.config.headerName);
-    if (!headerValue) return null;
+    if (!headerValue) return [];
 
     switch (this.config.headerFormat) {
       case "prefixed":
-        return headerValue.trim();
+        return [headerValue.trim()].filter(Boolean);
       case "comma-separated": {
         const sigMap = this.parseDelimitedHeader(headerValue);
         const signatureKey = this.config.customConfig?.signatureKey || "v1";
-        return sigMap[signatureKey] || sigMap.signature || sigMap.v1 || null;
+        return [
+          sigMap[signatureKey],
+          sigMap.signature,
+          sigMap.v1,
+        ].filter((value): value is string => Boolean(value));
       }
       case "raw":
       default:
         if (this.config.customConfig?.signatureFormat?.includes("v1=")) {
-          const signatures = headerValue.split(" ");
+          const signatures = headerValue
+            .trim()
+            .split(/\s+/)
+            .map((entry) => entry.trim())
+            .filter(Boolean);
+
+          const normalized: string[] = [];
           for (const sig of signatures) {
-            const [version, signature] = sig.split(",");
-            if (version === "v1") {
-              return signature;
+            // Standard Webhooks format is usually "v1,<signature>"
+            if (sig.startsWith("v1,")) {
+              const [, value] = sig.split(",", 2);
+              if (value) {
+                normalized.push(value.trim());
+              }
+              continue;
+            }
+
+            // Accept "v1=<signature>" variants used by some providers/docs.
+            if (sig.startsWith("v1=")) {
+              const [, value] = sig.split("=", 2);
+              if (value) {
+                normalized.push(value.trim());
+              }
             }
           }
-          return null;
+
+          return normalized;
         }
-        return headerValue;
+        return [headerValue.trim()].filter(Boolean);
     }
   }
 
@@ -324,8 +347,8 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
 
   async verify(request: Request): Promise<WebhookVerificationResult> {
     try {
-      const signature = this.extractSignature(request);
-      if (!signature) {
+      const signatures = this.extractSignatures(request);
+      if (signatures.length === 0) {
         return {
           isValid: false,
           error: `Missing signature header: ${this.config.headerName}`,
@@ -361,12 +384,18 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       const algorithm = this.config.algorithm.replace("hmac-", "");
 
       for (const payload of payloadCandidates) {
-        if (this.config.customConfig?.encoding === "base64") {
-          isValid = this.verifyHMACWithBase64(payload, signature, algorithm);
-        } else if (this.config.headerFormat === "prefixed") {
-          isValid = this.verifyHMACWithPrefix(payload, signature, algorithm);
-        } else {
-          isValid = this.verifyHMAC(payload, signature, algorithm);
+        for (const signature of signatures) {
+          if (this.config.customConfig?.encoding === "base64") {
+            isValid = this.verifyHMACWithBase64(payload, signature, algorithm);
+          } else if (this.config.headerFormat === "prefixed") {
+            isValid = this.verifyHMACWithPrefix(payload, signature, algorithm);
+          } else {
+            isValid = this.verifyHMAC(payload, signature, algorithm);
+          }
+
+          if (isValid) {
+            break;
+          }
         }
 
         if (isValid) {
@@ -532,8 +561,8 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
 
   async verify(request: Request): Promise<WebhookVerificationResult> {
     try {
-      const signature = this.extractSignature(request);
-      if (!signature) {
+      const signatures = this.extractSignatures(request);
+      if (signatures.length === 0) {
         return {
           isValid: false,
           error: `Missing signature header: ${this.config.headerName}`,
@@ -593,30 +622,37 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
       // fal.ai signature is hex encoded (not base64)
       // other ED25519 platforms use base64 by default
       const signatureEncoding = this.platform === "falai" ? "hex" : "base64";
-      const signatureBytes = new Uint8Array(
-        Buffer.from(signature, signatureEncoding),
-      );
       const payloadBytes = new Uint8Array(Buffer.from(payload, "utf-8"));
 
       // try all keys — succeeds if any key validates
       // this handles key rotation gracefully
       let isValid = false;
-      for (const pem of publicKeys) {
-        try {
-          const keyObject = createPublicKey(pem);
-          const valid = verifySignature(
-            null,
-            payloadBytes,
-            keyObject,
-            signatureBytes,
-          );
-          if (valid) {
-            isValid = true;
-            break;
+      for (const signature of signatures) {
+        const signatureBytes = new Uint8Array(
+          Buffer.from(signature, signatureEncoding),
+        );
+
+        for (const pem of publicKeys) {
+          try {
+            const keyObject = createPublicKey(pem);
+            const valid = verifySignature(
+              null,
+              payloadBytes,
+              keyObject,
+              signatureBytes,
+            );
+            if (valid) {
+              isValid = true;
+              break;
+            }
+          } catch {
+            // this key failed — try next
+            continue;
           }
-        } catch {
-          // this key failed — try next
-          continue;
+        }
+
+        if (isValid) {
+          break;
         }
       }
 
