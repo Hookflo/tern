@@ -28,6 +28,7 @@ export class WebhookVerificationService {
     // Ensure the platform is set correctly in the result
     if (result.isValid) {
       result.platform = config.platform;
+      result.eventId = this.resolveCanonicalEventId(config.platform, result.metadata);
 
       if (config.normalize) {
         result.payload = normalizePayload(config.platform, result.payload, config.normalize);
@@ -160,6 +161,27 @@ export class WebhookVerificationService {
     };
   }
 
+
+  private static resolveCanonicalEventId(
+    platform: WebhookPlatform,
+    metadata?: Record<string, any>,
+  ): string {
+    const rawId = this.resolveRawEventId(platform, metadata);
+    return `${platform}:${rawId}`;
+  }
+
+  private static resolveRawEventId(
+    platform: WebhookPlatform,
+    metadata?: Record<string, any>,
+  ): string {
+    const candidate = metadata?.id || metadata?.delivery || metadata?.requestId || metadata?.timestamp;
+    if (candidate !== undefined && candidate !== null && `${candidate}`.trim().length > 0) {
+      return `${candidate}`.trim();
+    }
+
+    return `generated-${Date.now().toString(36)}-${platform}`;
+  }
+
   static detectPlatform(request: Request): WebhookPlatform {
     const headers = request.headers;
 
@@ -178,12 +200,10 @@ export class WebhookVerificationService {
     if (headers.has('paddle-signature')) return 'paddle';
     if (headers.has('x-razorpay-signature')) return 'razorpay';
     if (headers.has('x-signature')) return 'lemonsqueezy';
-    if (headers.has('x-auth0-signature')) return 'auth0';
     if (headers.has('x-wc-webhook-signature')) return 'woocommerce';
     if (headers.has('x-fal-signature') || headers.has('x-fal-webhook-signature')) return 'falai';
     if (headers.has('x-shopify-hmac-sha256')) return 'shopify';
     if (headers.has('x-vercel-signature')) return 'vercel';
-    if (headers.has('x-webhook-token') && headers.has('x-webhook-id')) return 'supabase';
 
     return 'unknown';
   }
@@ -203,8 +223,8 @@ export class WebhookVerificationService {
     return validateSignatureConfig(config);
   }
 
-  // Simple token-based verification for platforms like Supabase
-  static async verifyTokenBased<TPayload = unknown>(
+  // Simple token-based verification helper for token-auth providers
+  static async verifyTokenAuth<TPayload = unknown>(
     request: Request,
     webhookId: string,
     webhookToken: string,
@@ -246,6 +266,7 @@ export class WebhookVerificationService {
         isValid: true,
         platform: 'custom',
         payload: payload as TPayload,
+        eventId: `custom:${idHeader}`,
         metadata: {
           id: idHeader,
           algorithm: 'token-based',
@@ -259,6 +280,14 @@ export class WebhookVerificationService {
         platform: 'custom',
       };
     }
+  }
+
+  static async verifyTokenBased<TPayload = unknown>(
+    request: Request,
+    webhookId: string,
+    webhookToken: string,
+  ): Promise<WebhookVerificationResult<TPayload>> {
+    return this.verifyTokenAuth<TPayload>(request, webhookId, webhookToken);
   }
 }
 

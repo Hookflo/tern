@@ -15,7 +15,7 @@ function getHeaderValue(
 ): string | undefined {
   const value = headers[name.toLowerCase()] ?? headers[name];
   if (Array.isArray(value)) {
-    return value.join(",");
+    return value.join(',');
   }
   return value;
 }
@@ -28,10 +28,10 @@ async function readIncomingMessageBodyAsBuffer(
   const chunks: Uint8Array[] = [];
 
   return new Promise<Uint8Array>((resolve, reject) => {
-    request.on?.("data", (chunk: unknown) => {
+    request.on?.('data', (chunk: unknown) => {
       if (chunk instanceof Uint8Array) {
         chunks.push(chunk);
-      } else if (typeof chunk === "string") {
+      } else if (typeof chunk === 'string') {
         chunks.push(new TextEncoder().encode(chunk));
       } else if (chunk != null) {
         try {
@@ -41,7 +41,7 @@ async function readIncomingMessageBodyAsBuffer(
         }
       }
     });
-    request.on?.("end", () => {
+    request.on?.('end', () => {
       const totalLength = chunks.reduce((sum, c) => sum + c.byteLength, 0);
       const result = new Uint8Array(totalLength);
       let offset = 0;
@@ -51,28 +51,28 @@ async function readIncomingMessageBodyAsBuffer(
       }
       resolve(result);
     });
-    request.on?.("error", (err: unknown) => reject(err));
+    request.on?.('error', (err: unknown) => reject(err));
   });
 }
 
 export async function extractRawBody(
   request: MinimalNodeRequest,
 ): Promise<Uint8Array> {
-  const body = request.body;
+  const { body } = request;
 
   if (body instanceof Uint8Array) {
     return body;
   }
-  if (typeof body === "string") {
+  if (typeof body === 'string') {
     return new TextEncoder().encode(body);
   }
 
-  if (body !== null && body !== undefined && typeof body === "object") {
+  if (body !== null && body !== undefined && typeof body === 'object') {
     console.warn(
-      "[Tern] Warning: request body is already parsed as JSON. " +
-        "Signature verification may fail. " +
-        'Add express.raw({ type: "*/*" }) before Tern on webhook routes, ' +
-        "or register webhook routes before app.use(express.json()).",
+      '[Tern] Warning: request body is already parsed as JSON. '
+        + 'Signature verification may fail. '
+        + 'Add express.raw({ type: "*/*" }) before Tern on webhook routes, '
+        + 'or register webhook routes before app.use(express.json()).',
     );
     return new TextEncoder().encode(JSON.stringify(body));
   }
@@ -99,7 +99,7 @@ export function toHeadersInit(
       continue;
     }
     if (Array.isArray(value)) {
-      normalized.set(key, value.join(","));
+      normalized.set(key, value.join(','));
       continue;
     }
     normalized.set(key, value);
@@ -111,19 +111,18 @@ export function toHeadersInit(
 export async function toWebRequest(
   request: MinimalNodeRequest,
 ): Promise<Request> {
-  const protocol = request.protocol || "https";
-  const host =
-    request.get?.("host") ||
-    getHeaderValue(request.headers, "host") ||
-    "localhost";
-  const path = request.originalUrl || request.url || "/";
+  const protocol = request.protocol || 'https';
+  const host = request.get?.('host')
+    || getHeaderValue(request.headers, 'host')
+    || 'localhost';
+  const path = request.originalUrl || request.url || '/';
   const rawBody = await extractRawBody(request);
 
   const init: RequestInit & { duplex?: string } = {
-    method: request.method || "POST",
+    method: request.method || 'POST',
     headers: toHeadersInit(request.headers),
     body: toArrayBuffer(rawBody),
-    duplex: "half",
+    duplex: 'half',
   };
 
   return new Request(`${protocol}://${host}${path}`, init);

@@ -1,7 +1,6 @@
 export type WebhookPlatform =
   | 'custom'
   | 'clerk'
-  | 'supabase'
   | 'github'
   | 'stripe'
   | 'shopify'
@@ -12,7 +11,6 @@ export type WebhookPlatform =
   | 'paddle'
   | 'razorpay'
   | 'lemonsqueezy'
-  | 'auth0'
   | 'workos'
   | 'woocommerce'
   | 'replicateai'
@@ -27,12 +25,10 @@ export enum WebhookPlatformKeys {
   Shopify = 'shopify',
   Vercel = 'vercel',
   Polar = 'polar',
-  Supabase = 'supabase',
   GitLab = 'gitlab',
   Paddle = 'paddle',
   Razorpay = 'razorpay',
   LemonSqueezy = 'lemonsqueezy',
-  Auth0 = 'auth0',
   WorkOS = 'workos',
   WooCommerce = 'woocommerce',
   ReplicateAI = 'replicateai',
@@ -169,6 +165,7 @@ export interface WebhookVerificationResult<TPayload = unknown> {
   errorCode?: WebhookErrorCode;
   platform: WebhookPlatform;
   payload?: TPayload;
+  eventId?: string;
   metadata?: {
     timestamp?: string;
     id?: string | null;
@@ -197,7 +194,7 @@ export interface PlatformAlgorithmConfig {
   description?: string;
 }
 
-// Interface for simple token-based authentication (like Supabase)
+// Interface for simple token-based authentication
 export interface TokenAuthConfig {
   webhookId: string;
   webhookToken: string;

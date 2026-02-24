@@ -133,10 +133,6 @@ export function detectPlatformFromHeaders(headers: Headers): WebhookPlatform | n
     return 'lemonsqueezy';
   }
 
-  if (headerMap.has('x-auth0-signature')) {
-    return 'auth0';
-  }
-
   if (headerMap.has('x-wc-webhook-signature')) {
     return 'woocommerce';
   }
@@ -165,11 +161,6 @@ export function detectPlatformFromHeaders(headers: Headers): WebhookPlatform | n
     if (userAgent.includes('polar')) {
       return 'polar';
     }
-  }
-
-  // Supabase
-  if (headerMap.has('x-webhook-token')) {
-    return 'supabase';
   }
 
   return null;

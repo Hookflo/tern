@@ -72,18 +72,6 @@ const platformNormalizers: Partial<Record<WebhookPlatform, PlatformNormalization
       occurred_at: new Date().toISOString(),
     }),
   },
-  supabase: {
-    platform: 'supabase',
-    category: 'auth',
-    normalize: (payload): Omit<AuthWebhookNormalized, '_raw' | '_platform'> => ({
-      category: 'auth',
-      event: readPath(payload, 'type') || readPath(payload, 'event') || 'auth.unknown',
-      user_id: readPath(payload, 'record.id') || readPath(payload, 'id'),
-      email: readPath(payload, 'record.email') || readPath(payload, 'email'),
-      metadata: {},
-      occurred_at: new Date().toISOString(),
-    }),
-  },
   vercel: {
     platform: 'vercel',
     category: 'infrastructure',

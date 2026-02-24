@@ -120,7 +120,7 @@ export async function exampleSimplifiedPlatform() {
   }
 }
 
-// Example 4: Token-based authentication (Supabase style)
+// Example 4: Token-based authentication helper
 export async function exampleTokenBased() {
   console.log('\n🔧 Example 4: Token-Based Authentication\n');
 
@@ -135,7 +135,7 @@ export async function exampleTokenBased() {
   });
 
   try {
-    const result = await WebhookVerificationService.verifyTokenBased(
+    const result = await WebhookVerificationService.verifyTokenAuth(
       request,
       'webhook_123',
       'token_456',

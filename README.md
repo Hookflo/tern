@@ -17,6 +17,8 @@ npm install @hookflo/tern
 
 Tern is a zero-dependency TypeScript framework for robust webhook verification across multiple platforms and algorithms.
 
+**Runtime requirements:** Node.js 18+ (or any runtime with Web Crypto + Fetch APIs, such as Deno and Cloudflare Workers).
+
 <img width="1396" height="470" style="border-radius: 10px" alt="tern bird nature" src="https://github.com/user-attachments/assets/5f0da3e6-1aba-4f88-a9d7-9d8698845c39" />
 
 ## Features
@@ -24,7 +26,7 @@ Tern is a zero-dependency TypeScript framework for robust webhook verification a
 - **Algorithm Agnostic**: Decouples platform logic from signature verification — verify based on cryptographic algorithm, not hardcoded platform rules.
 Supports HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, and custom algorithms
 
-- **Platform Specific**: Accurate implementations for **Stripe, GitHub, Supabase, Clerk**, and other platforms
+- **Platform Specific**: Accurate implementations for **Stripe, GitHub, Clerk**, and other platforms
 - **Flexible Configuration**: Custom signature configurations for any webhook format
 - **Type Safe**: Full TypeScript support with comprehensive type definitions
 - **Framework Agnostic**: Works with Express.js, Next.js, Cloudflare Workers, and more
@@ -56,20 +58,16 @@ npm install @hookflo/tern
 ### Basic Usage
 
 ```typescript
-import { WebhookVerificationService, platformManager } from '@hookflo/tern';
+import { WebhookVerificationService } from '@hookflo/tern';
 
-// Method 1: Using the service (recommended)
-const result = await WebhookVerificationService.verifyWithPlatformConfig(
-  request,
-  'stripe',
-  'whsec_your_stripe_webhook_secret'
-);
-
-// Method 2: Using platform manager (for platform-specific operations)
-const stripeResult = await platformManager.verify(request, 'stripe', 'whsec_your_secret');
+const result = await WebhookVerificationService.verify(request, {
+  platform: 'stripe',
+  secret: 'whsec_your_stripe_webhook_secret',
+  toleranceInSeconds: 300,
+});
 
 if (result.isValid) {
-  console.log('Webhook verified!', result.payload);
+  console.log('Webhook verified!', result.eventId, result.payload);
 } else {
   console.log('Verification failed:', result.error);
 }
@@ -147,21 +145,6 @@ console.log(result.payload);
 // }
 ```
 
-### Platform-Specific Usage
-
-```typescript
-import { platformManager } from '@hookflo/tern';
-
-// Run tests for a specific platform
-const testsPassed = await platformManager.runPlatformTests('stripe');
-
-// Get platform configuration
-const config = platformManager.getConfig('stripe');
-
-// Get platform documentation
-const docs = platformManager.getDocumentation('stripe');
-```
-
 ### Platform-Specific Configurations
 
 ```typescript
@@ -213,7 +196,6 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 - **Paddle**: HMAC-SHA256 OK Tested
 - **Razorpay**: HMAC-SHA256 Pending
 - **Lemon Squeezy**: HMAC-SHA256 OK Tested
-- **Auth0**: HMAC-SHA256 Pending
 - **WorkOS**: HMAC-SHA256 (`workos-signature`, `t/v1`) OK Tested
 - **WooCommerce**: HMAC-SHA256 (base64 signature) Pending
 - **ReplicateAI**: HMAC-SHA256 (Standard Webhooks style) OK Tested
@@ -221,12 +203,11 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 - **Shopify**: HMAC-SHA256 (base64 signature) OK Tested
 - **Vercel**: HMAC-SHA256 Pending
 - **Polar**: HMAC-SHA256 OK Tested
-- **Supabase**: Token-based authentication Pending
 - **GitLab**: Token-based authentication OK Tested
 
 ## Custom Platform Configuration
 
-This framework is fully configuration-driven. You can verify webhooks from any provider—even if it is not built-in—by supplying a custom configuration object. This allows you to support new or proprietary platforms instantly, without waiting for a library update.
+This framework is fully configuration-driven. `timestampHeader` is optional and only needed for providers that send timestamp separately from the signature. You can verify webhooks from any provider—even if it is not built-in—by supplying a custom configuration object. This allows you to support new or proprietary platforms instantly, without waiting for a library update.
 
 ### Example: Standard HMAC-SHA256 Webhook
 
@@ -240,6 +221,7 @@ const acmeConfig = {
     algorithm: 'hmac-sha256',
     headerName: 'x-acme-signature',
     headerFormat: 'raw',
+    // Optional: only include when provider sends timestamp in a separate header
     timestampHeader: 'x-acme-timestamp',
     timestampFormat: 'unix',
     payloadFormat: 'timestamped', // signs as {timestamp}.{body}
@@ -275,14 +257,22 @@ const result = await WebhookVerificationService.verify(request, svixConfig);
 
 You can configure any combination of algorithm, header, payload, and encoding. See the `SignatureConfig` type for all options.
 
-## Webhook Verification OK Tested Platforms
+For `platform: 'custom'`, default config remains compatible with token-style providers through `signatureConfig.customConfig` (`type: 'token-based'`, `idHeader: 'x-webhook-id'`), and you can override it per provider.
+
+## Verified Platforms (continuously tested)
 - **Stripe**
-- **Supabase**
-- **Github**
+- **GitHub**
 - **Clerk**
 - **Dodo Payments**
+- **GitLab**
+- **WorkOS**
+- **Lemon Squeezy**
+- **Paddle**
+- **Shopify**
+- **Polar**
+- **ReplicateAI**
 
-- **Other Platforms** : Yet to verify....
+Other listed platforms are supported but may have lighter coverage depending on release cycle.
 
 
 ## Custom Configurations
@@ -445,9 +435,11 @@ Simplified verification using platform-specific configurations with optional pay
 
 Auto-detects platform from headers and verifies against one or more provider secrets.
 
-#### `verifyTokenBased(request: Request, webhookId: string, webhookToken: string): Promise<WebhookVerificationResult>`
+#### `verifyTokenAuth(request: Request, webhookId: string, webhookToken: string): Promise<WebhookVerificationResult>`
 
-Verifies token-based webhooks (like Supabase).
+Verifies token-based webhooks.
+
+> `verifyTokenBased(...)` remains available as a backward-compatible alias and still works for existing integrations.
 
 #### `getPlatformsByCategory(category: 'payment' | 'auth' | 'ecommerce' | 'infrastructure'): WebhookPlatform[]`
 
@@ -464,9 +456,10 @@ interface WebhookVerificationResult {
   errorCode?: WebhookErrorCode;
   platform: WebhookPlatform;
   payload?: any;
+  eventId?: string; // canonical ID, e.g. 'stripe:evt_123'
   metadata?: {
     timestamp?: string;
-    id?: string | null;
+    id?: string | null; // raw provider ID (legacy)
     [key: string]: any;
   };
 }
