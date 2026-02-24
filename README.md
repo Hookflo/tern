@@ -199,6 +199,10 @@ const result = await WebhookVerificationService.verify(request, stripeConfig);
 - **WorkOS**: HMAC-SHA256 (`workos-signature`, `t/v1`) OK Tested
 - **WooCommerce**: HMAC-SHA256 (base64 signature) Pending
 - **ReplicateAI**: HMAC-SHA256 (Standard Webhooks style) OK Tested
+- **Sentry**: HMAC-SHA256 (`sentry-hook-signature`) with JSON-stringified payload + issue-alert fallback
+- **Grafana (v12+)**: HMAC-SHA256 (`x-grafana-alerting-signature`) with optional timestamped payload
+- **Doppler**: HMAC-SHA256 (`x-doppler-signature`, `sha256=` prefix)
+- **Sanity**: Stripe-compatible HMAC-SHA256 (`sanity-webhook-signature`, `t=/v1=`)
 - **fal.ai**: ED25519 (`x-fal-webhook-signature`)
 - **Shopify**: HMAC-SHA256 (base64 signature) OK Tested
 - **Vercel**: HMAC-SHA256 Pending

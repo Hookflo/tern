@@ -80,9 +80,41 @@ function createWorkOSSignature(body: string, secret: string, timestamp: number):
   return `t=${timestamp},v1=${hmac.digest('hex')}`;
 }
 
+
+function createSentrySignature(body: string, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(JSON.stringify(JSON.parse(body)));
+  return hmac.digest('hex');
+}
+
+function createSentryIssueAlertSignature(issueAlertObject: Record<string, unknown>, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(JSON.stringify(issueAlertObject));
+  return hmac.digest('hex');
+}
+
+function createGrafanaSignature(body: string, secret: string, timestamp?: number): string {
+  const payload = timestamp ? `${timestamp}.${body}` : body;
+  const hmac = createHmac('sha256', secret);
+  hmac.update(payload);
+  return hmac.digest('hex');
+}
+
+function createDopplerSignature(body: string, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(body);
+  return `sha256=${hmac.digest('hex')}`;
+}
+
+function createSanitySignature(body: string, secret: string, timestamp: number): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(`${timestamp}.${body}`);
+  return `t=${timestamp},v1=${hmac.digest('hex')}`;
+}
+
 function createFalPayloadToSign(body: string, requestId: string, userId: string, timestamp: string): string {
   const bodyHash = createHash('sha256').update(body).digest('hex');
-  return `${requestId}.${userId}.${timestamp}.${bodyHash}`;
+  return `${requestId}\n${userId}\n${timestamp}\n${bodyHash}`;
 }
 
 async function runTests() {
@@ -270,6 +302,120 @@ async function runTests() {
     }
   } catch (error) {
     console.log('   ❌ Token-based test failed:', error);
+  }
+
+  // Test 5.5: Sentry webhook verification (standard + issue alert fallback)
+  console.log('\n5.5. Testing Sentry Webhook...');
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const requestId = 'sentry-request-id-123';
+    const sentryBody = JSON.stringify({
+      action: 'triggered',
+      data: {
+        issue_alert: {
+          id: 'alert-1',
+          title: 'CPU high',
+          project: 'infra',
+        },
+      },
+    });
+
+    const sentryRequest = createMockRequest({
+      'sentry-hook-signature': createSentrySignature(sentryBody, testSecret),
+      'sentry-hook-timestamp': timestamp.toString(),
+      'request-id': requestId,
+      'content-type': 'application/json',
+    }, sentryBody);
+
+    const sentryResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      sentryRequest,
+      'sentry',
+      testSecret,
+    );
+
+    const sentryIssueAlertRequest = createMockRequest({
+      'sentry-hook-signature': createSentryIssueAlertSignature({ id: 'alert-1', title: 'CPU high', project: 'infra' }, testSecret),
+      'sentry-hook-timestamp': timestamp.toString(),
+      'request-id': `${requestId}-issue-alert`,
+      'content-type': 'application/json',
+    }, sentryBody);
+
+    const sentryIssueAlertResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      sentryIssueAlertRequest,
+      'sentry',
+      testSecret,
+    );
+
+    const sentryPassed = sentryResult.isValid && sentryIssueAlertResult.isValid && sentryResult.eventId?.startsWith('sentry:');
+    console.log('   ✅ Sentry:', sentryPassed ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Sentry test failed:', error);
+  }
+
+  // Test 5.6: Grafana webhook verification
+  console.log('\n5.6. Testing Grafana Webhook...');
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const grafanaSignature = createGrafanaSignature(testBody, testSecret, timestamp);
+
+    const grafanaRequest = createMockRequest({
+      'x-grafana-alerting-signature': grafanaSignature,
+      'x-grafana-alerting-timestamp': timestamp.toString(),
+      'content-type': 'application/json',
+    });
+
+    const grafanaResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      grafanaRequest,
+      'grafana',
+      testSecret,
+    );
+
+    console.log('   ✅ Grafana:', grafanaResult.isValid ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Grafana test failed:', error);
+  }
+
+  // Test 5.7: Doppler webhook verification
+  console.log('\n5.7. Testing Doppler Webhook...');
+  try {
+    const dopplerRequest = createMockRequest({
+      'x-doppler-signature': createDopplerSignature(testBody, testSecret),
+      'content-type': 'application/json',
+    });
+
+    const dopplerResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      dopplerRequest,
+      'doppler',
+      testSecret,
+    );
+
+    const dopplerPassed = dopplerResult.isValid && Boolean(dopplerResult.eventId?.startsWith('doppler:'));
+    console.log('   ✅ Doppler:', dopplerPassed ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Doppler test failed:', error);
+  }
+
+  // Test 5.8: Sanity webhook verification
+  console.log('\n5.8. Testing Sanity Webhook...');
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const idempotencyKey = 'sanity-idem-123';
+    const sanityRequest = createMockRequest({
+      'sanity-webhook-signature': createSanitySignature(testBody, testSecret, timestamp),
+      'idempotency-key': idempotencyKey,
+      'content-type': 'application/json',
+    });
+
+    const sanityResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      sanityRequest,
+      'sanity',
+      testSecret,
+    );
+
+    const sanityPassed = sanityResult.isValid && sanityResult.eventId === `sanity:${idempotencyKey}`;
+    console.log('   ✅ Sanity:', sanityPassed ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Sanity test failed:', error);
   }
 
   // Test 6: Invalid signatures
@@ -622,12 +768,12 @@ try {
     const timestamp = Math.floor(Date.now() / 1000).toString();
     const payloadToSign = createFalPayloadToSign(testBody, requestId, userId, timestamp);
     const payloadBytes = new Uint8Array(Buffer.from(payloadToSign));
-    const signature = sign(null, payloadBytes, privateKey).toString('base64');
+    const signature = sign(null, payloadBytes, privateKey).toString('hex');
 
     const request = createMockRequest({
       'x-fal-webhook-signature': signature,
-      'x-fal-request-id': requestId,
-      'x-fal-user-id': userId,
+      'x-fal-webhook-request-id': requestId,
+      'x-fal-webhook-user-id': userId,
       'x-fal-webhook-timestamp': timestamp,
       'content-type': 'application/json',
     });
@@ -644,8 +790,8 @@ try {
           payloadFormat: 'custom',
           customConfig: {
             publicKey: publicKey.export({ type: 'spki', format: 'pem' }).toString(),
-            requestIdHeader: 'x-fal-request-id',
-            userIdHeader: 'x-fal-user-id',
+            requestIdHeader: 'x-fal-webhook-request-id',
+            userIdHeader: 'x-fal-webhook-user-id',
             timestampHeader: 'x-fal-webhook-timestamp',
           },
         },

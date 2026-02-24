@@ -119,7 +119,7 @@ export const platformAlgorithmConfigs: Record<
         signatureFormat: 'v1={signature}',
         payloadFormat: '{id}.{timestamp}.{body}',
         encoding: 'base64',
-        secretEncoding: 'utf8',
+        secretEncoding: 'base64',
         idHeader: 'webhook-id',
       },
     },
@@ -254,6 +254,70 @@ export const platformAlgorithmConfigs: Record<
       'fal.ai webhooks use ED25519 with JWKS key verification. No secret required — pass empty string.',
   },
 
+  sentry: {
+    platform: 'sentry',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'sentry-hook-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'sentry-hook-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'json-stringified',
+      idHeader: 'request-id',
+      customConfig: {
+        issueAlertPayloadPath: 'data.issue_alert',
+      },
+    },
+    description:
+      'Sentry webhooks use HMAC-SHA256 with JSON stringified body and Request-ID idempotency key',
+  },
+
+  grafana: {
+    platform: 'grafana',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'x-grafana-alerting-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'x-grafana-alerting-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'timestamped',
+    },
+    description:
+      'Grafana 12+ webhooks support HMAC-SHA256 with optional timestamped payload format',
+  },
+
+  doppler: {
+    platform: 'doppler',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'x-doppler-signature',
+      headerFormat: 'prefixed',
+      prefix: 'sha256=',
+      payloadFormat: 'raw',
+      customConfig: {
+        dedupHashAlgorithm: 'sha256',
+      },
+    },
+    description:
+      'Doppler webhooks use HMAC-SHA256 with sha256= signature prefix and raw payload signing',
+  },
+
+  sanity: {
+    platform: 'sanity',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'sanity-webhook-signature',
+      headerFormat: 'comma-separated',
+      payloadFormat: 'timestamped',
+      customConfig: {
+        timestampKey: 't',
+        signatureKey: 'v1',
+      },
+      idHeader: 'idempotency-key',
+    },
+    description:
+      'Sanity webhooks use Stripe-compatible signatures with timestamp/body payload and idempotency key header',
+  },
   custom: {
     platform: 'custom',
     signatureConfig: {

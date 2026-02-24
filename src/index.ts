@@ -202,6 +202,10 @@ export class WebhookVerificationService {
     if (headers.has('x-signature')) return 'lemonsqueezy';
     if (headers.has('x-wc-webhook-signature')) return 'woocommerce';
     if (headers.has('x-fal-signature') || headers.has('x-fal-webhook-signature')) return 'falai';
+    if (headers.has('sentry-hook-signature')) return 'sentry';
+    if (headers.has('x-grafana-alerting-signature')) return 'grafana';
+    if (headers.has('x-doppler-signature')) return 'doppler';
+    if (headers.has('sanity-webhook-signature')) return 'sanity';
     if (headers.has('x-shopify-hmac-sha256')) return 'shopify';
     if (headers.has('x-vercel-signature')) return 'vercel';
 
