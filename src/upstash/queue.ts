@@ -1,9 +1,32 @@
-import { Client, Receiver } from '@upstash/qstash';
+import * as QStash from '@upstash/qstash';
 import { WebhookVerificationService } from '../index';
 import { WebhookPlatform } from '../types';
 import { QueueOption, QueuedMessage, ResolvedQueueConfig } from './types';
 
 export type HandlerFn = (payload: unknown, metadata: Record<string, unknown>) => Promise<unknown> | unknown;
+
+type QStashReceiverInstance = {
+  verify: (input: { signature: string; body: string; url?: string }) => Promise<boolean>;
+};
+
+function createQStashReceiver(queueConfig: ResolvedQueueConfig): QStashReceiverInstance {
+  const receiverExport = (QStash as { Receiver?: unknown; default?: { Receiver?: unknown } }).Receiver
+    ?? (QStash as { default?: { Receiver?: unknown } }).default?.Receiver;
+
+  if (typeof receiverExport !== 'function') {
+    throw new Error(
+      '[tern] Incompatible @upstash/qstash version: Receiver export not found. Please upgrade to a version that exports Receiver.',
+    );
+  }
+
+  return new (receiverExport as new (args: {
+    currentSigningKey: string;
+    nextSigningKey: string;
+  }) => QStashReceiverInstance)({
+    currentSigningKey: queueConfig.signingKey,
+    nextSigningKey: queueConfig.nextSigningKey,
+  });
+}
 
 function nonRetryableResponse(message: string, status: number = 489): Response {
   return new Response(JSON.stringify({ error: message }), {
@@ -53,7 +76,7 @@ export async function handleReceive(
     );
   }
 
-  const client = new Client({ token: queueConfig.token });
+  const client = new QStash.Client({ token: queueConfig.token });
 
   const queuedMessage: QueuedMessage = {
     platform,
@@ -104,10 +127,7 @@ export async function handleProcess(
 
   const rawBody = await request.text();
 
-  const receiver = new Receiver({
-    currentSigningKey: queueConfig.signingKey,
-    nextSigningKey: queueConfig.nextSigningKey,
-  });
+  const receiver = createQStashReceiver(queueConfig);
 
   try {
     const verification = await receiver.verify({
