@@ -96,7 +96,13 @@
       "import": "./dist/cloudflare.js",
       "default": "./dist/cloudflare.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./upstash": {
+      "types": "./dist/upstash/index.d.ts",
+      "require": "./dist/upstash/index.js",
+      "import": "./dist/upstash/index.js",
+      "default": "./dist/upstash/index.js"
+    }
   },
   "typesVersions": {
     "*": {
@@ -111,7 +117,18 @@
       ],
       "*": [
         "dist/index.d.ts"
+      ],
+      "upstash": [
+        "dist/upstash/index.d.ts"
       ]
+    }
+  },
+  "peerDependencies": {
+    "@upstash/qstash": ">=2.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@upstash/qstash": {
+      "optional": true
     }
   }
 }

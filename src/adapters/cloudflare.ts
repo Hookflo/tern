@@ -1,5 +1,7 @@
 import { WebhookPlatform, NormalizeOptions } from '../types';
 import { WebhookVerificationService } from '../index';
+import { handleQueuedRequest, resolveQueueConfig } from '../upstash/queue';
+import { QueueOption } from '../upstash/types';
 
 export interface CloudflareWebhookHandlerOptions<TEnv = Record<string, unknown>, TPayload = any, TMetadata extends Record<string, unknown> = Record<string, unknown>, TResponse = unknown> {
   platform: WebhookPlatform;
@@ -7,6 +9,7 @@ export interface CloudflareWebhookHandlerOptions<TEnv = Record<string, unknown>,
   secretEnv?: string;
   toleranceInSeconds?: number;
   normalize?: boolean | NormalizeOptions;
+  queue?: QueueOption;
   onError?: (error: Error) => void;
   handler: (payload: TPayload, env: TEnv, metadata: TMetadata) => Promise<TResponse> | TResponse;
 }
@@ -21,6 +24,17 @@ export function createWebhookHandler<TEnv = Record<string, unknown>, TPayload = 
 
       if (!secret) {
         return Response.json({ error: 'Webhook secret is not configured' }, { status: 500 });
+      }
+
+      if (options.queue) {
+        const queueConfig = resolveQueueConfig(options.queue);
+        return handleQueuedRequest(request, {
+          platform: options.platform,
+          secret,
+          queueConfig,
+          handler: (payload: unknown, metadata: Record<string, unknown>) => options.handler(payload as TPayload, env, metadata as TMetadata),
+          toleranceInSeconds: options.toleranceInSeconds ?? 300,
+        });
       }
 
       const result = await WebhookVerificationService.verifyWithPlatformConfig(

@@ -4,6 +4,8 @@ import {
   NormalizeOptions,
 } from '../types';
 import { WebhookVerificationService } from '../index';
+import { handleQueuedRequest, resolveQueueConfig } from '../upstash/queue';
+import { QueueOption } from '../upstash/types';
 import { toWebRequest, MinimalNodeRequest } from './shared';
 
 export interface ExpressLikeResponse {
@@ -22,6 +24,7 @@ export interface ExpressWebhookMiddlewareOptions {
   secret: string;
   toleranceInSeconds?: number;
   normalize?: boolean | NormalizeOptions;
+  queue?: QueueOption;
   onError?: (error: Error) => void;
 }
 
@@ -35,6 +38,29 @@ export function createWebhookMiddleware(
   ): Promise<void> => {
     try {
       const webRequest = await toWebRequest(req);
+
+      if (options.queue) {
+        const queueConfig = resolveQueueConfig(options.queue);
+        const queueResponse = await handleQueuedRequest(webRequest, {
+          platform: options.platform,
+          secret: options.secret,
+          queueConfig,
+          toleranceInSeconds: options.toleranceInSeconds ?? 300,
+        });
+
+        const bodyText = await queueResponse.text();
+        let body: unknown = undefined;
+        if (bodyText) {
+          try {
+            body = JSON.parse(bodyText);
+          } catch {
+            body = { message: bodyText };
+          }
+        }
+
+        res.status(queueResponse.status).json(body ?? {});
+        return;
+      }
 
       const result = await WebhookVerificationService.verifyWithPlatformConfig(
         webRequest,
