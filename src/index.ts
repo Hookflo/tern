@@ -16,6 +16,7 @@ import {
   validateSignatureConfig,
 } from './platforms/algorithms';
 import { normalizePayload } from './normalization/simple';
+import type { QueueOption } from './upstash/types';
 
 export class WebhookVerificationService {
   static async verify<TPayload = unknown>(
@@ -286,6 +287,28 @@ export class WebhookVerificationService {
     }
   }
 
+
+  static async handleWithQueue(
+    request: Request,
+    options: {
+      platform: WebhookPlatform;
+      secret: string;
+      queue: QueueOption;
+      handler: (payload: unknown, metadata: Record<string, unknown>) => Promise<unknown> | unknown;
+      toleranceInSeconds?: number;
+    },
+  ): Promise<Response> {
+    const { resolveQueueConfig, handleQueuedRequest } = await import('./upstash/queue');
+
+    const queueConfig = resolveQueueConfig(options.queue);
+    return handleQueuedRequest(request, {
+      platform: options.platform,
+      secret: options.secret,
+      queueConfig,
+      handler: options.handler,
+      toleranceInSeconds: options.toleranceInSeconds ?? 300,
+    });
+  }
   static async verifyTokenBased<TPayload = unknown>(
     request: Request,
     webhookId: string,
