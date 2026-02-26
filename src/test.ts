@@ -803,6 +803,43 @@ try {
     console.log('   ❌ fal.ai test failed:', error);
   }
 
+
+  // Test 21: Core SDK queue entry point
+  console.log('\n21. Testing core SDK handleWithQueue...');
+  try {
+    const request = createMockRequest({
+      'content-type': 'application/json',
+    });
+
+    const originalToken = process.env.QSTASH_TOKEN;
+    const originalCurrent = process.env.QSTASH_CURRENT_SIGNING_KEY;
+    const originalNext = process.env.QSTASH_NEXT_SIGNING_KEY;
+
+    delete process.env.QSTASH_TOKEN;
+    delete process.env.QSTASH_CURRENT_SIGNING_KEY;
+    delete process.env.QSTASH_NEXT_SIGNING_KEY;
+
+    let threw = false;
+    try {
+      await WebhookVerificationService.handleWithQueue(request, {
+        platform: 'stripe',
+        secret: testSecret,
+        queue: true,
+        handler: async () => undefined,
+      });
+    } catch (error) {
+      threw = (error as Error).message.includes('queue: true requires QSTASH_TOKEN');
+    }
+
+    if (originalToken !== undefined) process.env.QSTASH_TOKEN = originalToken;
+    if (originalCurrent !== undefined) process.env.QSTASH_CURRENT_SIGNING_KEY = originalCurrent;
+    if (originalNext !== undefined) process.env.QSTASH_NEXT_SIGNING_KEY = originalNext;
+
+    console.log('   ✅ handleWithQueue:', threw ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ handleWithQueue test failed:', error);
+  }
+
   console.log('\n🎉 All tests completed!');
 }
 
