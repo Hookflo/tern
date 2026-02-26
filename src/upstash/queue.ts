@@ -236,7 +236,7 @@ export async function handleReceive(
 
   const deduplicationId = await resolveDeduplicationId(request, verificationResult);
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV == 'production') {
     console.log(`[tern] deduplication-id: ${deduplicationId} (platform: ${platform})`);
   }
 
