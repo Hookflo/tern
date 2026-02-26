@@ -168,7 +168,7 @@ export class WebhookVerificationService {
     metadata?: Record<string, any>,
   ): string {
     const rawId = this.resolveRawEventId(platform, metadata);
-    return `${platform}:${rawId}`;
+    return `${platform}_${rawId}`;
   }
 
   private static resolveRawEventId(
