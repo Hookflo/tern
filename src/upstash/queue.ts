@@ -14,6 +14,7 @@ type QStashClientInstance = {
     url: string;
     body: QueuedMessage;
     deduplicationId?: string;
+    headers?: Record<string, string>;
     retries?: number;
   }) => Promise<unknown>;
 };
@@ -243,11 +244,15 @@ export async function handleReceive(
     url: string;
     body: QueuedMessage;
     deduplicationId: string;
+    headers: Record<string, string>;
     retries?: number;
   } = {
     url: request.url,
     body: queuedMessage,
     deduplicationId,
+    headers: {
+      'x-tern-platform': platform,
+    },
   };
 
   if (queueConfig.retries !== undefined) {

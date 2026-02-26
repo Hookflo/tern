@@ -19,7 +19,12 @@ function parseBody(body: unknown): Record<string, unknown> | undefined {
     try {
       return JSON.parse(body) as Record<string, unknown>;
     } catch {
-      return undefined;
+      try {
+        const decoded = Buffer.from(body, 'base64').toString('utf8');
+        return JSON.parse(decoded) as Record<string, unknown>;
+      } catch {
+        return undefined;
+      }
     }
   }
 
@@ -27,19 +32,18 @@ function parseBody(body: unknown): Record<string, unknown> | undefined {
 }
 
 function resolvePlatform(message: Record<string, unknown>): string {
+  const headers = message.headers as Record<string, unknown> | undefined;
+  const headerPlatform = headers?.['x-tern-platform'] ?? headers?.['X-Tern-Platform'];
+
+  if (typeof headerPlatform === 'string' && headerPlatform.trim().length > 0) {
+    return headerPlatform;
+  }
+
   const body = parseBody(message.body);
   const bodyPlatform = body?.platform;
 
   if (typeof bodyPlatform === 'string' && bodyPlatform.trim().length > 0) {
     return bodyPlatform;
-  }
-
-  const urlGroup = message.urlGroup as Record<string, unknown> | undefined;
-  const endpoint = typeof urlGroup?.endpoint === 'string' ? urlGroup.endpoint : '';
-  const routePlatform = endpoint.split('/').filter(Boolean).pop();
-
-  if (routePlatform && routePlatform !== 'webhooks') {
-    return routePlatform;
   }
 
   return 'unknown';
