@@ -1,6 +1,6 @@
 import * as QStash from '@upstash/qstash';
 import { WebhookVerificationService } from '../index';
-import { WebhookPlatform } from '../types';
+import { WebhookPlatform, WebhookVerificationResult } from '../types';
 import { QueueOption, QueuedMessage, ResolvedQueueConfig } from './types';
 
 export type HandlerFn = (payload: unknown, metadata: Record<string, unknown>) => Promise<unknown> | unknown;
@@ -155,6 +155,56 @@ export function resolveQueueConfig(queue: QueueOption): ResolvedQueueConfig {
   return queue;
 }
 
+function toStableJson(value: unknown): string {
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => toStableJson(item)).join(',')}]`;
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, nested]) => `${JSON.stringify(key)}:${toStableJson(nested)}`);
+    return `{${entries.join(',')}}`;
+  }
+
+  return JSON.stringify(value);
+}
+
+async function resolveDeduplicationId(
+  request: Request,
+  verificationResult: WebhookVerificationResult,
+): Promise<string> {
+  const payload = verificationResult.payload as Record<string, unknown> | undefined;
+  const headers = request.headers;
+
+  const payloadId = typeof payload?.id === 'string' ? payload.id : null;
+  const payloadRequestId = typeof payload?.request_id === 'string' ? payload.request_id : null;
+  const nestedPayloadId = payload?.data && typeof payload.data === 'object' && typeof (payload.data as Record<string, unknown>).id === 'string'
+    ? (payload.data as Record<string, unknown>).id as string
+    : null;
+
+  const explicit =
+    headers.get('x-webhook-id') ||
+    headers.get('x-github-delivery') ||
+    headers.get('idempotency-key') ||
+    headers.get('upstash-deduplication-id') ||
+    verificationResult.eventId ||
+    (typeof verificationResult.metadata?.id === 'string' ? verificationResult.metadata.id : null) ||
+    payloadId ||
+    payloadRequestId ||
+    nestedPayloadId;
+
+  if (explicit) return explicit;
+
+  const raw = toStableJson(payload || {});
+  const buffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+  const hash = Array.from(new Uint8Array(buffer))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('');
+
+  return hash.slice(0, 32);
+}
+
 export async function handleReceive(
   request: Request,
   platform: WebhookPlatform,
@@ -183,20 +233,21 @@ export async function handleReceive(
     metadata: verificationResult.metadata || {},
   };
 
-  const idempotencyKey =
-    request.headers.get('idempotency-key') ||
-    request.headers.get('x-webhook-id') ||
-    undefined;
+  const deduplicationId = await resolveDeduplicationId(request, verificationResult);
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[tern] deduplication-id: ${deduplicationId} (platform: ${platform})`);
+  }
 
   const publishPayload: {
     url: string;
     body: QueuedMessage;
-    deduplicationId?: string;
+    deduplicationId: string;
     retries?: number;
   } = {
     url: request.url,
     body: queuedMessage,
-    deduplicationId: idempotencyKey,
+    deduplicationId,
   };
 
   if (queueConfig.retries !== undefined) {

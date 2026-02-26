@@ -8,6 +8,43 @@ import {
 
 const QSTASH_API_BASE = 'https://qstash.upstash.io/v2';
 
+function parseBody(body: unknown): Record<string, unknown> | undefined {
+  if (!body) return undefined;
+
+  if (typeof body === 'object') {
+    return body as Record<string, unknown>;
+  }
+
+  if (typeof body === 'string') {
+    try {
+      return JSON.parse(body) as Record<string, unknown>;
+    } catch {
+      return undefined;
+    }
+  }
+
+  return undefined;
+}
+
+function resolvePlatform(message: Record<string, unknown>): string {
+  const body = parseBody(message.body);
+  const bodyPlatform = body?.platform;
+
+  if (typeof bodyPlatform === 'string' && bodyPlatform.trim().length > 0) {
+    return bodyPlatform;
+  }
+
+  const urlGroup = message.urlGroup as Record<string, unknown> | undefined;
+  const endpoint = typeof urlGroup?.endpoint === 'string' ? urlGroup.endpoint : '';
+  const routePlatform = endpoint.split('/').filter(Boolean).pop();
+
+  if (routePlatform && routePlatform !== 'webhooks') {
+    return routePlatform;
+  }
+
+  return 'unknown';
+}
+
 function createHeaders(token: string): HeadersInit {
   return {
     Authorization: `Bearer ${token}`,
@@ -30,7 +67,7 @@ export function createTernControls(config: TernControlsConfig) {
       });
 
       if (!response.ok) {
-        throw new Error(`[tern] Failed to fetch DLQ messages: ${response.status} ${response.statusText}`);
+        throw new Error(`[tern] Failed to fetch DLQ: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json() as { messages?: Array<Record<string, unknown>> };
@@ -38,29 +75,34 @@ export function createTernControls(config: TernControlsConfig) {
 
       return messages.map((message) => ({
         id: String(message.messageId || message.id || ''),
-        platform: String(message.body && typeof message.body === 'object' ? (message.body as Record<string, unknown>).platform || 'unknown' : 'unknown'),
-        payload: message.body && typeof message.body === 'object' ? (message.body as Record<string, unknown>).payload : undefined,
+        dlqId: String(message.dlqId || ''),
+        platform: resolvePlatform(message),
+        payload: parseBody(message.body)?.payload,
         failedAt: String(message.updatedAt || message.createdAt || new Date().toISOString()),
         attempts: Number(message.retried || message.attempts || 0),
         error: typeof message.error === 'string' ? message.error : undefined,
       }));
     },
 
-    async replay(messageId: string): Promise<ReplayResult> {
-      const response = await fetch(`${QSTASH_API_BASE}/dlq/${messageId}`, {
-        method: 'POST',
+    async replay(dlqId: string): Promise<ReplayResult> {
+      if (!dlqId || dlqId.trim() === '') {
+        throw new Error('[tern] replay() requires a dlqId, not a messageId. Get dlqId from controls.dlq()');
+      }
+
+      const response = await fetch(`${QSTASH_API_BASE}/dlq/${dlqId}`, {
+        method: 'DELETE',
         headers: createHeaders(config.token),
       });
 
       if (!response.ok) {
-        throw new Error(`[tern] Failed to replay DLQ message ${messageId}: ${response.status} ${response.statusText}`);
+        throw new Error(
+          `[tern] Failed to replay DLQ message ${dlqId}: ${response.status} ${response.statusText}`,
+        );
       }
-
-      const data = await response.json() as Record<string, unknown>;
 
       return {
         success: true,
-        messageId: String(data.messageId || messageId),
+        messageId: dlqId,
         replayedAt: new Date().toISOString(),
       };
     },
@@ -80,7 +122,7 @@ export function createTernControls(config: TernControlsConfig) {
         const status = deriveStatus(String(message.state || message.status || 'retrying'));
         return {
           id: String(message.messageId || message.id || ''),
-          platform: String(message.body && typeof message.body === 'object' ? (message.body as Record<string, unknown>).platform || 'unknown' : 'unknown'),
+          platform: resolvePlatform(message),
           status,
           attempts: Number(message.retried || message.attempts || 0),
           createdAt: String(message.createdAt || new Date().toISOString()),

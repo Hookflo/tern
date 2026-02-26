@@ -22,6 +22,7 @@ export interface TernControlsConfig {
 
 export interface DLQMessage {
   id: string;
+  dlqId: string;
   platform: string;
   payload: unknown;
   failedAt: string;
