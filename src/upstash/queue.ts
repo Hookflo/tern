@@ -9,23 +9,122 @@ type QStashReceiverInstance = {
   verify: (input: { signature: string; body: string; url?: string }) => Promise<boolean>;
 };
 
-function createQStashReceiver(queueConfig: ResolvedQueueConfig): QStashReceiverInstance {
-  const receiverExport = (QStash as { Receiver?: unknown; default?: { Receiver?: unknown } }).Receiver
-    ?? (QStash as { default?: { Receiver?: unknown } }).default?.Receiver;
+type QStashClientInstance = {
+  publishJSON: (payload: {
+    url: string;
+    body: QueuedMessage;
+    deduplicationId?: string;
+    retries?: number;
+  }) => Promise<unknown>;
+};
+
+type QStashModuleShape = {
+  Receiver?: unknown;
+  Client?: unknown;
+  default?: {
+    Receiver?: unknown;
+    Client?: unknown;
+  };
+};
+
+async function dynamicImport(modulePath: string): Promise<unknown> {
+  return new Function('modulePath', 'return import(modulePath);')(modulePath) as Promise<unknown>;
+}
+
+async function loadQStashModules(): Promise<QStashModuleShape[]> {
+  const optionalImports = await Promise.allSettled([
+    dynamicImport('@upstash/qstash'),
+    dynamicImport('@upstash/qstash/nextjs'),
+    dynamicImport('@upstash/qstash/nuxt'),
+    dynamicImport('@upstash/qstash/sveltekit'),
+    dynamicImport('@upstash/qstash/cloudflare'),
+  ]);
+
+  return [
+    QStash as QStashModuleShape,
+    ...optionalImports.flatMap((result) => (result.status === 'fulfilled' ? [result.value as QStashModuleShape] : [])),
+  ];
+}
+
+function resolveModuleExport<T>(modules: QStashModuleShape[], key: 'Receiver' | 'Client'): T | undefined {
+  for (const moduleRef of modules) {
+    const directExport = moduleRef[key];
+    if (typeof directExport === 'function') {
+      return directExport as T;
+    }
+
+    const defaultExport = moduleRef.default?.[key];
+    if (typeof defaultExport === 'function') {
+      return defaultExport as T;
+    }
+  }
+
+  return undefined;
+}
+
+function resolveNestedConstructor<T>(modules: QStashModuleShape[], key: 'Receiver' | 'Client'): T | undefined {
+  const seen = new Set<unknown>();
+  const queue: unknown[] = [...modules];
+
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== 'object' || seen.has(current)) {
+      continue;
+    }
+
+    seen.add(current);
+    const record = current as Record<string, unknown>;
+    const candidate = record[key];
+    if (typeof candidate === 'function') {
+      return candidate as T;
+    }
+
+    for (const value of Object.values(record)) {
+      if (value && typeof value === 'object') {
+        queue.push(value);
+      }
+    }
+  }
+
+  return undefined;
+}
+
+async function createQStashReceiver(queueConfig: ResolvedQueueConfig): Promise<QStashReceiverInstance> {
+  const modules = await loadQStashModules();
+  const receiverExport = resolveModuleExport<new (args: {
+    currentSigningKey: string;
+    nextSigningKey: string;
+  }) => QStashReceiverInstance>(modules, 'Receiver')
+    ?? resolveNestedConstructor<new (args: {
+      currentSigningKey: string;
+      nextSigningKey: string;
+    }) => QStashReceiverInstance>(modules, 'Receiver');
 
   if (typeof receiverExport !== 'function') {
     throw new Error(
-      '[tern] Incompatible @upstash/qstash version: Receiver export not found. Please upgrade to a version that exports Receiver.',
+      '[tern] Incompatible @upstash/qstash version: Receiver export not found. Ensure @upstash/qstash is installed and up-to-date.',
     );
   }
 
-  return new (receiverExport as new (args: {
-    currentSigningKey: string;
-    nextSigningKey: string;
-  }) => QStashReceiverInstance)({
+  return new receiverExport({
     currentSigningKey: queueConfig.signingKey,
     nextSigningKey: queueConfig.nextSigningKey,
   });
+}
+
+async function createQStashClient(queueConfig: ResolvedQueueConfig): Promise<QStashClientInstance> {
+  const modules = await loadQStashModules();
+  const clientExport = resolveModuleExport<new (args: { token: string }) => QStashClientInstance>(modules, 'Client');
+  const resolvedClientExport = clientExport
+    ?? resolveNestedConstructor<new (args: { token: string }) => QStashClientInstance>(modules, 'Client');
+
+  if (typeof resolvedClientExport !== 'function') {
+    throw new Error(
+      '[tern] Incompatible @upstash/qstash version: Client export not found. Ensure @upstash/qstash is installed and up-to-date.',
+    );
+  }
+
+  return new resolvedClientExport({ token: queueConfig.token });
 }
 
 function nonRetryableResponse(message: string, status: number = 489): Response {
@@ -76,7 +175,7 @@ export async function handleReceive(
     );
   }
 
-  const client = new QStash.Client({ token: queueConfig.token });
+  const client = await createQStashClient(queueConfig);
 
   const queuedMessage: QueuedMessage = {
     platform,
@@ -127,7 +226,7 @@ export async function handleProcess(
 
   const rawBody = await request.text();
 
-  const receiver = createQStashReceiver(queueConfig);
+  const receiver = await createQStashReceiver(queueConfig);
 
   try {
     const verification = await receiver.verify({

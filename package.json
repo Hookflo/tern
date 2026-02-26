@@ -125,7 +125,7 @@
     }
   },
   "peerDependencies": {
-    "@upstash/qstash": ">=2.0.0"
+    "@upstash/qstash": ">=2.9.0"
   },
   "peerDependenciesMeta": {
     "@upstash/qstash": {
