@@ -232,7 +232,6 @@ export async function handleProcess(
     const verification = await receiver.verify({
       signature,
       body: rawBody,
-      url: request.url,
     });
 
     if (verification === false) {
