@@ -29,7 +29,11 @@ export class WebhookVerificationService {
     // Ensure the platform is set correctly in the result
     if (result.isValid) {
       result.platform = config.platform;
-      result.eventId = this.resolveCanonicalEventId(config.platform, result.metadata, result.payload as Record<string, any> | undefined);
+      result.eventId = this.resolveCanonicalEventId(
+        config.platform,
+        result.metadata,
+        result.payload as Record<string, any>,
+      ) ?? undefined;
 
       if (config.normalize) {
         result.payload = normalizePayload(config.platform, result.payload, config.normalize);
@@ -167,8 +171,9 @@ export class WebhookVerificationService {
     platform: WebhookPlatform,
     metadata?: Record<string, any>,
     payload?: Record<string, any>,
-  ): string {
+  ): string | null {
     const rawId = this.resolveRawEventId(platform, metadata, payload);
+    if (!rawId) return null;
     return `${platform}_${rawId}`;
   }
 
@@ -191,74 +196,61 @@ export class WebhookVerificationService {
     platform: WebhookPlatform,
     metadata?: Record<string, any>,
     payload?: Record<string, any>,
-  ): string {
-    const candidate = (() => {
-      switch (platform) {
-        case 'stripe':
-          return this.pickString(payload?.request?.idempotency_key, payload?.id, metadata?.id);
-        case 'github':
-          return this.pickString(metadata?.delivery, metadata?.id, payload?.id);
-        case 'clerk':
-          return this.pickString(metadata?.id, payload?.id);
-        case 'shopify':
-          return this.pickString(metadata?.id, payload?.id);
-        case 'polar':
-          return this.pickString(payload?.data?.id, payload?.id, metadata?.id);
-        case 'dodopayments':
-          return this.pickString(payload?.data?.payment_id, payload?.data?.subscription_id, payload?.data?.id, metadata?.id);
-        case 'gitlab':
-          return this.pickString(payload?.object_attributes?.id, payload?.project?.id, metadata?.id);
-        case 'paddle':
-          return this.pickString(payload?.event_id, payload?.data?.id, metadata?.id);
-        case 'razorpay':
-          return this.pickString(
-            payload?.payload?.payment?.entity?.id,
-            payload?.payload?.order?.entity?.id,
-            payload?.payload?.subscription?.entity?.id,
-            payload?.id,
-            metadata?.id,
-          );
-        case 'lemonsqueezy': {
-          const eventName = this.pickString(payload?.meta?.event_name);
-          const dataId = this.pickString(payload?.data?.id, payload?.id);
-          if (eventName && dataId) {
-            return `${eventName}_${dataId}`;
-          }
-          return this.pickString(dataId, metadata?.id);
-        }
-        case 'workos':
-        case 'vercel':
-        case 'replicateai':
-        case 'sentry':
-          return this.pickString(payload?.id, metadata?.id);
-        case 'woocommerce':
-          return this.pickString(payload?.id, metadata?.id);
-        case 'falai':
-          return this.pickString(payload?.request_id, metadata?.id);
-        case 'grafana':
-          return this.pickString(payload?.groupKey, payload?.alerts?.[0]?.fingerprint, metadata?.id);
-        case 'doppler':
-          return this.pickString(payload?.event?.id, metadata?.id);
-        case 'sanity':
-          return this.pickString(payload?.transactionId, payload?._id, metadata?.id);
-        default:
-          return this.pickString(
-            payload?.idempotency_key,
-            payload?.event_id,
-            payload?.webhook_id,
-            payload?.request_id,
-            payload?.id,
-            payload?.data?.id,
-            metadata?.id,
-            metadata?.delivery,
-            metadata?.requestId,
-          );
+  ): string | null {
+    switch (platform) {
+      case 'stripe':
+        return this.pickString(payload?.request?.idempotency_key, payload?.id) || null;
+      case 'github':
+        return this.pickString(metadata?.delivery) || null;
+      case 'clerk':
+        return this.pickString(metadata?.id) || null;
+      case 'shopify':
+        return this.pickString(metadata?.id, payload?.id) || null;
+      case 'paddle':
+        return this.pickString(payload?.event_id, payload?.data?.id) || null;
+      case 'polar':
+        return this.pickString(payload?.data?.id, payload?.id) || null;
+      case 'falai':
+        return this.pickString(payload?.request_id) || null;
+      case 'replicateai':
+        return this.pickString(payload?.id) || null;
+      case 'workos':
+      case 'sentry':
+      case 'vercel':
+        return this.pickString(payload?.id) || null;
+      case 'doppler':
+        return this.pickString(payload?.event?.id, metadata?.id) || null;
+      case 'sanity':
+        return this.pickString(payload?.transactionId, payload?._id) || null;
+      case 'razorpay':
+        return this.pickString(
+          payload?.payload?.payment?.entity?.id,
+          payload?.payload?.order?.entity?.id,
+          payload?.payload?.subscription?.entity?.id,
+        ) || null;
+      case 'lemonsqueezy': {
+        const dataId = this.pickString(payload?.data?.id);
+        if (!dataId) return null;
+
+        const eventName = this.pickString(payload?.meta?.event_name);
+        return eventName ? `${eventName}_${dataId}` : null;
       }
-    })();
-
-    if (candidate) return candidate;
-
-    return `generated-missing-${platform}`;
+      case 'gitlab':
+        return this.pickString(payload?.object_attributes?.id?.toString()) || null;
+      case 'grafana':
+        return this.pickString(payload?.groupKey, payload?.alerts?.[0]?.fingerprint) || null;
+      case 'woocommerce':
+        return this.pickString(payload?.id?.toString()) || null;
+      default:
+        return this.pickString(
+          payload?.idempotency_key,
+          payload?.event_id,
+          payload?.webhook_id,
+          payload?.id,
+          metadata?.id,
+          metadata?.delivery,
+        ) || null;
+    }
   }
 
   static detectPlatform(request: Request): WebhookPlatform {
