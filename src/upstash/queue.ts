@@ -189,9 +189,7 @@ async function resolveDeduplicationId(
     headers.get('x-github-delivery') ||
     headers.get('idempotency-key') ||
     headers.get('upstash-deduplication-id') ||
-    (verificationResult.eventId && !verificationResult.eventId.includes('generated-missing-')
-      ? verificationResult.eventId
-      : null) ||
+    verificationResult.eventId ||
     (typeof verificationResult.metadata?.id === 'string' ? verificationResult.metadata.id : null) ||
     payloadId ||
     payloadRequestId ||
@@ -238,7 +236,7 @@ export async function handleReceive(
 
   const deduplicationId = await resolveDeduplicationId(request, verificationResult);
 
-  if (process.env.NODE_ENV == 'production') {
+  if (process.env.NODE_ENV !== 'production') {
     console.log(`[tern] deduplication-id: ${deduplicationId} (platform: ${platform})`);
   }
 
@@ -261,12 +259,75 @@ export async function handleReceive(
     publishPayload.retries = queueConfig.retries;
   }
 
-  await client.publishJSON(publishPayload);
+  try {
+    await client.publishJSON(publishPayload);
+    return new Response(JSON.stringify({ queued: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    const status = (error as any)?.status ?? 0;
+    const errorBody = (error as any)?.body
+      ? (() => {
+        try {
+          return JSON.parse((error as any).body);
+        } catch {
+          return {};
+        }
+      })()
+      : {};
 
-  return new Response(JSON.stringify({ queued: true }), {
-    status: 200,
-    headers: { 'Content-Type': 'application/json' },
-  });
+    console.error('[tern] QStash publish failed:', {
+      status,
+      message: String(error),
+    });
+
+    if (status === 400) {
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid payload — could not enqueue',
+          detail: errorBody?.error,
+        }),
+        {
+          status: 489,
+          headers: {
+            'Content-Type': 'application/json',
+            'Upstash-NonRetryable-Error': 'true',
+          },
+        },
+      );
+    }
+
+    if (status === 401) {
+      return new Response(
+        JSON.stringify({
+          error: '[tern] QStash token invalid — check QSTASH_TOKEN in env',
+        }),
+        {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    if (status === 429) {
+      return new Response(
+        JSON.stringify({ error: 'QStash rate limited — retry shortly' }),
+        {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({ error: 'Queue temporarily unavailable' }),
+      {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  }
 }
 
 export async function handleProcess(
@@ -294,15 +355,27 @@ export async function handleProcess(
     });
 
     if (verification === false) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { 'Content-Type': 'application/json' } },
-      );
+      return nonRetryableResponse('Invalid QStash signature', 401);
     }
-  } catch {
+  } catch (error) {
+    const message = String(error).toLowerCase();
+
+    if (
+      message.includes('invalid signature') ||
+      message.includes('signature') ||
+      message.includes('unauthorized') ||
+      message.includes('forbidden')
+    ) {
+      return nonRetryableResponse('Invalid QStash signature', 401);
+    }
+
+    console.error('[tern] QStash signature verification error:', String(error));
     return new Response(
-      JSON.stringify({ error: 'Unauthorized' }),
-      { status: 401, headers: { 'Content-Type': 'application/json' } },
+      JSON.stringify({ error: 'Signature verification temporarily unavailable' }),
+      {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      },
     );
   }
 
