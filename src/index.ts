@@ -168,7 +168,7 @@ export class WebhookVerificationService {
 
 
   private static resolveCanonicalEventId(
-    platform: WebhookPlatform | 'replicate',
+    platform: WebhookPlatform,
     metadata?: Record<string, any>,
     payload?: Record<string, any>,
   ): string | null {
@@ -193,7 +193,7 @@ export class WebhookVerificationService {
   }
 
   private static resolveRawEventId(
-    platform: WebhookPlatform | 'replicate',
+    platform: WebhookPlatform,
     metadata?: Record<string, any>,
     payload?: Record<string, any>,
   ): string | null {
@@ -219,7 +219,6 @@ export class WebhookVerificationService {
       case 'falai':
         return this.pickString(payload?.request_id) || null;
       case 'replicateai':
-      case 'replicate':
         return this.pickString(payload?.id) || null;
       case 'workos':
       case 'sentry':
