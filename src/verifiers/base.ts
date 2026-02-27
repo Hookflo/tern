@@ -21,7 +21,7 @@ export abstract class WebhookVerifier {
   }
 
   protected safeCompare(a: string, b: string): boolean {
-    if (a.length !== b.length) {
+    if (Buffer.byteLength(a, 'utf8') !== Buffer.byteLength(b, 'utf8')) {
       return false;
     }
 

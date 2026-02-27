@@ -37,7 +37,7 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   abstract verify(request: Request): Promise<WebhookVerificationResult>;
 
   protected parseDelimitedHeader(headerValue: string): Record<string, string> {
-    const parts = headerValue.split(/[;,]/);
+    const parts = headerValue.split(/,(?=\s*[A-Za-z0-9_-]+\s*=)|;/);
     const values: Record<string, string> = {};
 
     for (const part of parts) {
@@ -111,16 +111,19 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     const timestampHeader = request.headers.get(this.config.timestampHeader);
     if (!timestampHeader) return null;
 
+    let parsed: number;
     switch (this.config.timestampFormat) {
-      case "unix":
-        return parseInt(timestampHeader, 10);
       case "iso":
-        return Math.floor(new Date(timestampHeader).getTime() / 1000);
+        parsed = Math.floor(new Date(timestampHeader).getTime() / 1000);
+        break;
+      case "unix":
       case "custom":
-        return parseInt(timestampHeader, 10);
       default:
-        return parseInt(timestampHeader, 10);
+        parsed = parseInt(timestampHeader, 10);
+        break;
     }
+
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
   protected extractTimestampFromSignature(request: Request): number | null {
@@ -133,7 +136,12 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
     const sigMap = this.parseDelimitedHeader(headerValue);
     const timestampKey = this.config.customConfig?.timestampKey || "t";
-    return sigMap[timestampKey] ? parseInt(sigMap[timestampKey], 10) : null;
+    if (!sigMap[timestampKey]) {
+      return null;
+    }
+
+    const parsed = parseInt(sigMap[timestampKey], 10);
+    return Number.isFinite(parsed) ? parsed : null;
   }
 
   protected formatPayload(rawBody: string, request: Request): string {
