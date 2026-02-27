@@ -197,7 +197,7 @@ export class WebhookVerificationService {
     metadata?: Record<string, any>,
     payload?: Record<string, any>,
   ): string | null {
-    switch (platform) {
+    switch (platform as string) {
       case 'stripe':
         return this.pickString(payload?.request?.idempotency_key, payload?.id) || null;
       case 'github':
@@ -219,6 +219,7 @@ export class WebhookVerificationService {
       case 'falai':
         return this.pickString(payload?.request_id) || null;
       case 'replicateai':
+      case 'replicate':
         return this.pickString(payload?.id) || null;
       case 'workos':
       case 'sentry':
