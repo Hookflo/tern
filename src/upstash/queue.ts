@@ -189,7 +189,9 @@ async function resolveDeduplicationId(
     headers.get('x-github-delivery') ||
     headers.get('idempotency-key') ||
     headers.get('upstash-deduplication-id') ||
-    verificationResult.eventId ||
+    (verificationResult.eventId && !verificationResult.eventId.includes('generated-missing-')
+      ? verificationResult.eventId
+      : null) ||
     (typeof verificationResult.metadata?.id === 'string' ? verificationResult.metadata.id : null) ||
     payloadId ||
     payloadRequestId ||
