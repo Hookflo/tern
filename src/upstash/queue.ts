@@ -361,7 +361,7 @@ export async function handleProcess(
     const message = String(error).toLowerCase();
 
     if (
-      message.includes('invalid') ||
+      message.includes('invalid signature') ||
       message.includes('signature') ||
       message.includes('unauthorized') ||
       message.includes('forbidden')
