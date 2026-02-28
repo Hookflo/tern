@@ -137,32 +137,26 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   }
 
   protected requiresTimestamp(): boolean {
-    if (this.platform === 'falai') {
-      return true;
-    }
+    // fal.ai timestamp is part of the signed payload itself — always required
+    if (this.platform === 'falai') return true;
 
-    if (this.config.timestampHeader) {
-      return true;
-    }
+    // These platforms have timestampHeader in config but timestamp
+    // is optional in their spec — validate only if present, never mandate
+    const optionalTimestampPlatforms = ['vercel', 'sentry', 'grafana'];
+    if (optionalTimestampPlatforms.includes(this.platform as string)) return false;
 
-    if (this.config.payloadFormat === 'timestamped') {
-      return true;
-    }
-
+    // For all other platforms: infer from config
+    if (this.config.timestampHeader) return true;
+    if (this.config.payloadFormat === 'timestamped') return true;
     if (
       this.config.payloadFormat === 'custom'
       && this.config.customConfig?.payloadFormat
       && `${this.config.customConfig.payloadFormat}`.includes('{timestamp}')
-    ) {
-      return true;
-    }
-
-    if (this.config.headerFormat === 'comma-separated') {
-      const timestampKey = this.config.customConfig?.timestampKey;
-      if (timestampKey) {
-        return true;
-      }
-    }
+    ) return true;
+    if (
+      this.config.headerFormat === 'comma-separated'
+      && this.config.customConfig?.timestampKey
+    ) return true;
 
     return false;
   }
@@ -502,7 +496,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
     }
 
     const abortController = new AbortController();
-    const timeout = setTimeout(() => abortController.abort(), 5000);
+    const timeout = setTimeout(() => abortController.abort(), 3000);
 
     let response: Response;
     try {
