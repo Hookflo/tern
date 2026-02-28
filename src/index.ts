@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import {
   WebhookConfig,
   WebhookVerificationResult,
@@ -125,27 +126,36 @@ export class WebhookVerificationService {
       errorCode?: WebhookErrorCode;
     }> = [];
 
-    for (const [platform, secret] of Object.entries(secrets)) {
-      if (!secret) {
-        continue;
-      }
+    const verificationResults = await Promise.all(
+      Object.entries(secrets)
+        .filter(([, secret]) => Boolean(secret))
+        .map(async ([platform, secret]) => {
+          const normalizedPlatform = platform.toLowerCase() as WebhookPlatform;
+          const result = await this.verifyWithPlatformConfig<TPayload>(
+            requestClone,
+            normalizedPlatform,
+            secret as string,
+            toleranceInSeconds,
+            normalize,
+          );
 
-      const result = await this.verifyWithPlatformConfig<TPayload>(
-        requestClone,
-        platform.toLowerCase() as WebhookPlatform,
-        secret,
-        toleranceInSeconds,
-        normalize,
-      );
+          return {
+            platform: normalizedPlatform,
+            result,
+          };
+        }),
+    );
 
-      if (result.isValid) {
-        return result;
-      }
+    const firstValid = verificationResults.find((item) => item.result.isValid);
+    if (firstValid) {
+      return firstValid.result;
+    }
 
+    for (const item of verificationResults) {
       failedAttempts.push({
-        platform: platform.toLowerCase() as WebhookPlatform,
-        error: result.error,
-        errorCode: result.errorCode,
+        platform: item.platform,
+        error: item.result.error,
+        errorCode: item.result.errorCode,
       });
     }
 
@@ -166,7 +176,6 @@ export class WebhookVerificationService {
     };
   }
 
-
   private static resolveCanonicalEventId(
     platform: WebhookPlatform,
     metadata?: Record<string, any>,
@@ -175,6 +184,17 @@ export class WebhookVerificationService {
     const rawId = this.resolveRawEventId(platform, metadata, payload);
     if (!rawId) return null;
     return `${platform}_${rawId}`;
+  }
+
+  private static safeCompare(a: string, b: string): boolean {
+    if (a.length !== b.length) {
+      return false;
+    }
+
+    return timingSafeEqual(
+      new TextEncoder().encode(a),
+      new TextEncoder().encode(b),
+    );
   }
 
   private static pickString(...candidates: Array<unknown>): string | undefined {
@@ -228,7 +248,7 @@ export class WebhookVerificationService {
       case 'doppler':
         return this.pickString(payload?.event?.id, metadata?.id) || null;
       case 'sanity':
-        return this.pickString(payload?.transactionId, payload?._id) || null;
+        return this.pickString(payload?.transactionId, payload?.['_id']) || null;
       case 'razorpay':
         return this.pickString(
           payload?.payload?.payment?.entity?.id,
@@ -261,7 +281,7 @@ export class WebhookVerificationService {
   }
 
   static detectPlatform(request: Request): WebhookPlatform {
-    const headers = request.headers;
+    const { headers } = request;
 
     if (headers.has('stripe-signature')) return 'stripe';
     if (headers.has('x-hub-signature-256')) return 'github';
@@ -324,8 +344,8 @@ export class WebhookVerificationService {
         };
       }
 
-      // Simple comparison - we don't actually verify, just check if tokens match
-      const isValid = idHeader === webhookId && tokenHeader === webhookToken;
+      const isValid = this.safeCompare(idHeader, webhookId)
+        && this.safeCompare(tokenHeader, webhookToken);
 
       if (!isValid) {
         return {
@@ -363,7 +383,6 @@ export class WebhookVerificationService {
       };
     }
   }
-
 
   static async handleWithQueue(
     request: Request,

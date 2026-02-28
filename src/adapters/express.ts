@@ -6,7 +6,7 @@ import {
 import { WebhookVerificationService } from '../index';
 import { handleQueuedRequest, resolveQueueConfig } from '../upstash/queue';
 import { QueueOption } from '../upstash/types';
-import { toWebRequest, MinimalNodeRequest } from './shared';
+import { toWebRequest, MinimalNodeRequest, hasParsedBody } from './shared';
 
 export interface ExpressLikeResponse {
   status: (code: number) => ExpressLikeResponse;
@@ -26,6 +26,7 @@ export interface ExpressWebhookMiddlewareOptions {
   normalize?: boolean | NormalizeOptions;
   queue?: QueueOption;
   onError?: (error: Error) => void;
+  strictRawBody?: boolean;
 }
 
 export function createWebhookMiddleware(
@@ -37,6 +38,16 @@ export function createWebhookMiddleware(
     next: ExpressLikeNext,
   ): Promise<void> => {
     try {
+      const strictRawBody = options.strictRawBody ?? true;
+      if (strictRawBody && hasParsedBody(req)) {
+        res.status(400).json({
+          error: 'Webhook request body must be raw bytes. Configure express.raw({ type: "*/*" }) before this middleware.',
+          errorCode: 'VERIFICATION_ERROR',
+          platform: options.platform,
+        });
+        return;
+      }
+
       const webRequest = await toWebRequest(req);
 
       if (options.queue) {
@@ -49,7 +60,7 @@ export function createWebhookMiddleware(
         });
 
         const bodyText = await queueResponse.text();
-        let body: unknown = undefined;
+        let body: unknown;
         if (bodyText) {
           try {
             body = JSON.parse(bodyText);

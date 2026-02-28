@@ -136,6 +136,31 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     return sigMap[timestampKey] ? parseInt(sigMap[timestampKey], 10) : null;
   }
 
+  protected requiresTimestamp(): boolean {
+    // fal.ai timestamp is part of the signed payload itself — always required
+    if (this.platform === 'falai') return true;
+
+    // These platforms have timestampHeader in config but timestamp
+    // is optional in their spec — validate only if present, never mandate
+    const optionalTimestampPlatforms = ['vercel', 'sentry', 'grafana'];
+    if (optionalTimestampPlatforms.includes(this.platform as string)) return false;
+
+    // For all other platforms: infer from config
+    if (this.config.timestampHeader) return true;
+    if (this.config.payloadFormat === 'timestamped') return true;
+    if (
+      this.config.payloadFormat === 'custom'
+      && this.config.customConfig?.payloadFormat
+      && `${this.config.customConfig.payloadFormat}`.includes('{timestamp}')
+    ) return true;
+    if (
+      this.config.headerFormat === 'comma-separated'
+      && this.config.customConfig?.timestampKey
+    ) return true;
+
+    return false;
+  }
+
   protected formatPayload(rawBody: string, request: Request): string {
     switch (this.config.payloadFormat) {
       case "timestamped": {
@@ -243,7 +268,7 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
     if (secretEncoding === "base64") {
       let rawSecret = this.secret;
-      
+
       const lastUnderscore = rawSecret.lastIndexOf("_");
       if (lastUnderscore !== -1) {
         rawSecret = rawSecret.slice(lastUnderscore + 1);
@@ -367,6 +392,15 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         timestamp = this.extractTimestamp(request);
       }
 
+      if (this.requiresTimestamp() && !timestamp) {
+        return {
+          isValid: false,
+          error: 'Missing required timestamp for webhook verification',
+          errorCode: 'MISSING_SIGNATURE',
+          platform: this.platform,
+        };
+      }
+
       if (timestamp && !this.isTimestampValid(timestamp)) {
         return {
           isValid: false,
@@ -461,7 +495,15 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
       return cached.pems;
     }
 
-    const response = await fetch(jwksUrl);
+    const abortController = new AbortController();
+    const timeout = setTimeout(() => abortController.abort(), 3000);
+
+    let response: Response;
+    try {
+      response = await fetch(jwksUrl, { signal: abortController.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) {
       throw new Error(
         `Failed to fetch JWKS from ${jwksUrl}: ${response.status}`,
@@ -510,7 +552,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
    *   2. Non-empty secret passed directly (user-provided PEM)
    *   3. JWKS URL in config (fal.ai — fetches all keys, tries each)
    */
-  private async resolvePublicKeys(request: Request): Promise<string[]> {
+  private async resolvePublicKeys(): Promise<string[]> {
     // 1. explicit public key in config
     const configPublicKey = this.config.customConfig?.publicKey as
       | string
@@ -580,16 +622,23 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
           this.config.customConfig?.timestampHeader ||
           "x-fal-webhook-timestamp";
         const timestampStr = request.headers.get(timestampHeader);
-        if (timestampStr) {
-          const timestamp = parseInt(timestampStr, 10);
-          if (!this.isTimestampValid(timestamp)) {
-            return {
-              isValid: false,
-              error: "Webhook timestamp expired",
-              errorCode: "TIMESTAMP_EXPIRED",
-              platform: this.platform,
-            };
-          }
+        if (!timestampStr) {
+          return {
+            isValid: false,
+            error: 'Missing required timestamp for webhook verification',
+            errorCode: 'MISSING_SIGNATURE',
+            platform: this.platform,
+          };
+        }
+
+        const timestamp = parseInt(timestampStr, 10);
+        if (!this.isTimestampValid(timestamp)) {
+          return {
+            isValid: false,
+            error: "Webhook timestamp expired",
+            errorCode: "TIMESTAMP_EXPIRED",
+            platform: this.platform,
+          };
         }
       }
 
@@ -601,7 +650,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
       // resolve all public keys
       let publicKeys: string[];
       try {
-        publicKeys = await this.resolvePublicKeys(request);
+        publicKeys = await this.resolvePublicKeys();
       } catch (error) {
         return {
           isValid: false,

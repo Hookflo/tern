@@ -19,6 +19,13 @@ type QStashClientInstance = {
   }) => Promise<unknown>;
 };
 
+type ReceiverConstructor = new (args: {
+  currentSigningKey: string;
+  nextSigningKey: string;
+}) => QStashReceiverInstance;
+
+type ClientConstructor = new (args: { token: string }) => QStashClientInstance;
+
 type QStashModuleShape = {
   Receiver?: unknown;
   Client?: unknown;
@@ -28,17 +35,12 @@ type QStashModuleShape = {
   };
 };
 
-async function dynamicImport(modulePath: string): Promise<unknown> {
-  return new Function('modulePath', 'return import(modulePath);')(modulePath) as Promise<unknown>;
-}
-
 async function loadQStashModules(): Promise<QStashModuleShape[]> {
   const optionalImports = await Promise.allSettled([
-    dynamicImport('@upstash/qstash'),
-    dynamicImport('@upstash/qstash/nextjs'),
-    dynamicImport('@upstash/qstash/nuxt'),
-    dynamicImport('@upstash/qstash/sveltekit'),
-    dynamicImport('@upstash/qstash/cloudflare'),
+    import('@upstash/qstash'),
+    import('@upstash/qstash/nextjs'),
+    import('@upstash/qstash/nuxt'),
+    import('@upstash/qstash/cloudflare'),
   ]);
 
   return [
@@ -92,22 +94,16 @@ function resolveNestedConstructor<T>(modules: QStashModuleShape[], key: 'Receive
 
 async function createQStashReceiver(queueConfig: ResolvedQueueConfig): Promise<QStashReceiverInstance> {
   const modules = await loadQStashModules();
-  const receiverExport = resolveModuleExport<new (args: {
-    currentSigningKey: string;
-    nextSigningKey: string;
-  }) => QStashReceiverInstance>(modules, 'Receiver')
-    ?? resolveNestedConstructor<new (args: {
-      currentSigningKey: string;
-      nextSigningKey: string;
-    }) => QStashReceiverInstance>(modules, 'Receiver');
+  const ReceiverCtor = resolveModuleExport<ReceiverConstructor>(modules, 'Receiver')
+    ?? resolveNestedConstructor<ReceiverConstructor>(modules, 'Receiver');
 
-  if (typeof receiverExport !== 'function') {
+  if (typeof ReceiverCtor !== 'function') {
     throw new Error(
       '[tern] Incompatible @upstash/qstash version: Receiver export not found. Ensure @upstash/qstash is installed and up-to-date.',
     );
   }
 
-  return new receiverExport({
+  return new ReceiverCtor({
     currentSigningKey: queueConfig.signingKey,
     nextSigningKey: queueConfig.nextSigningKey,
   });
@@ -115,17 +111,16 @@ async function createQStashReceiver(queueConfig: ResolvedQueueConfig): Promise<Q
 
 async function createQStashClient(queueConfig: ResolvedQueueConfig): Promise<QStashClientInstance> {
   const modules = await loadQStashModules();
-  const clientExport = resolveModuleExport<new (args: { token: string }) => QStashClientInstance>(modules, 'Client');
-  const resolvedClientExport = clientExport
-    ?? resolveNestedConstructor<new (args: { token: string }) => QStashClientInstance>(modules, 'Client');
+  const ClientCtor = resolveModuleExport<ClientConstructor>(modules, 'Client')
+    ?? resolveNestedConstructor<ClientConstructor>(modules, 'Client');
 
-  if (typeof resolvedClientExport !== 'function') {
+  if (typeof ClientCtor !== 'function') {
     throw new Error(
       '[tern] Incompatible @upstash/qstash version: Client export not found. Ensure @upstash/qstash is installed and up-to-date.',
     );
   }
 
-  return new resolvedClientExport({ token: queueConfig.token });
+  return new ClientCtor({ token: queueConfig.token });
 }
 
 function nonRetryableResponse(message: string, status: number = 489): Response {
@@ -176,7 +171,7 @@ async function resolveDeduplicationId(
   verificationResult: WebhookVerificationResult,
 ): Promise<string> {
   const payload = verificationResult.payload as Record<string, unknown> | undefined;
-  const headers = request.headers;
+  const { headers } = request;
 
   const payloadId = typeof payload?.id === 'string' ? payload.id : null;
   const payloadRequestId = typeof payload?.request_id === 'string' ? payload.request_id : null;

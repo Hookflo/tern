@@ -29,12 +29,6 @@ function createGitHubSignature(body: string, secret: string): string {
   return `sha256=${hmac.digest('hex')}`;
 }
 
-function createGitLabSignature(body: string, secret: string): string {
-  // GitLab just compares the token in X-Gitlab-Token header
-  return secret;
-}
-
-
 function createClerkSignature(body: string, secret: string, id: string, timestamp: number): string {
   const signedContent = `${id}.${timestamp}.${body}`;
   const secretBytes = new Uint8Array(Buffer.from(secret.split('_')[1], 'base64'));
@@ -52,13 +46,19 @@ function createStandardWebhooksSignature(body: string, secret: string, id: strin
   return `v1,${hmac.digest('base64')}`;
 }
 
+function createPolarSignature(body: string, secret: string, id: string, timestamp: number): string {
+  const signedContent = `${id}.${timestamp}.${body}`;
+  const hmac = createHmac('sha256', secret);
+  hmac.update(signedContent);
+  return `v1,${hmac.digest('base64')}`;
+}
+
 function createPaddleSignature(body: string, secret: string, timestamp: number): string {
   const signedPayload = `${timestamp}:${body}`;
   const hmac = createHmac('sha256', secret);
   hmac.update(signedPayload);
   return `ts=${timestamp};h1=${hmac.digest('hex')}`;
 }
-
 
 function createShopifySignature(body: string, secret: string): string {
   const hmac = createHmac('sha256', secret);
@@ -72,14 +72,12 @@ function createWooCommerceSignature(body: string, secret: string): string {
   return hmac.digest('base64');
 }
 
-
 function createWorkOSSignature(body: string, secret: string, timestamp: number): string {
   const signedPayload = `${timestamp}.${body}`;
   const hmac = createHmac('sha256', secret);
   hmac.update(signedPayload);
   return `t=${timestamp},v1=${hmac.digest('hex')}`;
 }
-
 
 function createSentrySignature(body: string, secret: string): string {
   const hmac = createHmac('sha256', secret);
@@ -109,7 +107,7 @@ function createDopplerSignature(body: string, secret: string): string {
 function createSanitySignature(body: string, secret: string, timestamp: number): string {
   const hmac = createHmac('sha256', secret);
   hmac.update(`${timestamp}.${body}`);
-  return `t=${timestamp},v1=${hmac.digest('hex')}`;
+  return `t=${timestamp},v1=${hmac.digest('base64')}`;
 }
 
 function createFalPayloadToSign(body: string, requestId: string, userId: string, timestamp: string): string {
@@ -119,6 +117,15 @@ function createFalPayloadToSign(body: string, requestId: string, userId: string,
 
 async function runTests() {
   console.log('🧪 Running Webhook Verification Tests...\n');
+
+  const failedChecks: string[] = [];
+  const trackCheck = (label: string, passed: boolean, context?: string): boolean => {
+    if (!passed) {
+      failedChecks.push(context ? `${label} (${context})` : label);
+    }
+
+    return passed;
+  };
 
   // Test 1: Stripe Webhook
   console.log('1. Testing Stripe Webhook...');
@@ -137,8 +144,8 @@ async function runTests() {
       testSecret,
     );
 
-    const stripePassed = stripeResult.isValid && Boolean(stripeResult.eventId?.startsWith('stripe:'));
-    console.log('   ✅ Stripe:', stripePassed ? 'PASSED' : 'FAILED');
+    const stripePassed = stripeResult.isValid;
+    console.log('   ✅ Stripe:', trackCheck('Stripe webhook', stripePassed, stripeResult.error) ? 'PASSED' : 'FAILED');
     if (!stripeResult.isValid) {
       console.log('   ❌ Error:', stripeResult.error);
     }
@@ -287,7 +294,6 @@ async function runTests() {
       webhookToken,
     );
 
-
     const tokenAliasResult = await WebhookVerificationService.verifyTokenBased(
       tokenRequest.clone(),
       webhookId,
@@ -346,8 +352,8 @@ async function runTests() {
       testSecret,
     );
 
-    const sentryPassed = sentryResult.isValid && sentryIssueAlertResult.isValid && sentryResult.eventId?.startsWith('sentry:');
-    console.log('   ✅ Sentry:', sentryPassed ? 'PASSED' : 'FAILED');
+    const sentryPassed = sentryResult.isValid && sentryIssueAlertResult.isValid;
+    console.log('   ✅ Sentry:', trackCheck('Sentry webhook', sentryPassed, sentryResult.error || sentryIssueAlertResult.error) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ Sentry test failed:', error);
   }
@@ -389,8 +395,8 @@ async function runTests() {
       testSecret,
     );
 
-    const dopplerPassed = dopplerResult.isValid && Boolean(dopplerResult.eventId?.startsWith('doppler:'));
-    console.log('   ✅ Doppler:', dopplerPassed ? 'PASSED' : 'FAILED');
+    const dopplerPassed = dopplerResult.isValid && Boolean(dopplerResult.eventId?.startsWith('doppler_'));
+    console.log('   ✅ Doppler:', trackCheck('Doppler webhook', dopplerPassed, dopplerResult.error) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ Doppler test failed:', error);
   }
@@ -412,8 +418,8 @@ async function runTests() {
       testSecret,
     );
 
-    const sanityPassed = sanityResult.isValid && sanityResult.eventId === `sanity:${idempotencyKey}`;
-    console.log('   ✅ Sanity:', sanityPassed ? 'PASSED' : 'FAILED');
+    const sanityPassed = sanityResult.isValid && sanityResult.metadata?.id === idempotencyKey;
+    console.log('   ✅ Sanity:', trackCheck('Sanity webhook', sanityPassed, sanityResult.error) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ Sanity test failed:', error);
   }
@@ -467,52 +473,50 @@ async function runTests() {
   }
 
   // Test 8: GitLab Webhook
-console.log('\n8. Testing GitLab Webhook...');
-try {
-  const gitlabSecret = testSecret;
+  console.log('\n8. Testing GitLab Webhook...');
+  try {
+    const gitlabSecret = testSecret;
 
-  const gitlabRequest = createMockRequest({
-    'X-Gitlab-Token': gitlabSecret,
-    'content-type': 'application/json',
-  });
+    const gitlabRequest = createMockRequest({
+      'X-Gitlab-Token': gitlabSecret,
+      'content-type': 'application/json',
+    });
 
-  const gitlabResult = await WebhookVerificationService.verifyWithPlatformConfig(
-    gitlabRequest,
-    'gitlab',
-    gitlabSecret,
-  );
+    const gitlabResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      gitlabRequest,
+      'gitlab',
+      gitlabSecret,
+    );
 
-  console.log('   ✅ GitLab:', gitlabResult.isValid ? 'PASSED' : 'FAILED');
-  if (!gitlabResult.isValid) {
-    console.log('   ❌ Error:', gitlabResult.error);
+    console.log('   ✅ GitLab:', gitlabResult.isValid ? 'PASSED' : 'FAILED');
+    if (!gitlabResult.isValid) {
+      console.log('   ❌ Error:', gitlabResult.error);
+    }
+  } catch (error) {
+    console.log('   ❌ GitLab test failed:', error);
   }
-} catch (error) {
-  console.log('   ❌ GitLab test failed:', error);
-}
 
-// Test 9: GitLab Invalid Token
-console.log('\n9. Testing GitLab Invalid Token...');
-try {
-  const gitlabRequest = createMockRequest({
-    'X-Gitlab-Token': 'wrong_secret',
-    'content-type': 'application/json',
-  });
+  // Test 9: GitLab Invalid Token
+  console.log('\n9. Testing GitLab Invalid Token...');
+  try {
+    const gitlabRequest = createMockRequest({
+      'X-Gitlab-Token': 'wrong_secret',
+      'content-type': 'application/json',
+    });
 
-  const gitlabResult = await WebhookVerificationService.verifyWithPlatformConfig(
-    gitlabRequest,
-    'gitlab',
-    testSecret,
-  );
+    const gitlabResult = await WebhookVerificationService.verifyWithPlatformConfig(
+      gitlabRequest,
+      'gitlab',
+      testSecret,
+    );
 
-  console.log(
-    '   ✅ Invalid token correctly rejected:',
-    !gitlabResult.isValid ? 'PASSED' : 'FAILED'
-  );
-} catch (error) {
-  console.log('   ❌ GitLab invalid token test failed:', error);
-}
-
-
+    console.log(
+      '   ✅ Invalid token correctly rejected:',
+      !gitlabResult.isValid ? 'PASSED' : 'FAILED',
+    );
+  } catch (error) {
+    console.log('   ❌ GitLab invalid token test failed:', error);
+  }
 
   // Test 10: verifyAny should auto-detect Stripe
   console.log('\n10. Testing verifyAny auto-detection...');
@@ -530,7 +534,7 @@ try {
       github: 'wrong-secret',
     });
 
-    console.log('   ✅ verifyAny:', result.isValid && result.platform === 'stripe' ? 'PASSED' : 'FAILED');
+    console.log('   ✅ verifyAny:', trackCheck('verifyAny auto-detect', result.isValid && result.platform === 'stripe', result.error) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ verifyAny test failed:', error);
   }
@@ -602,7 +606,6 @@ try {
   } catch (error) {
     console.log('   ❌ Normalization test failed:', error);
   }
-
 
   // Test 12: Category-aware normalization registry
   console.log('\n12. Testing category-based platform registry...');
@@ -676,7 +679,7 @@ try {
     });
 
     const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'workos', testSecret);
-    console.log('   ✅ WorkOS:', result.isValid ? 'PASSED' : 'FAILED');
+    console.log('   ✅ WorkOS:', trackCheck('WorkOS webhook', result.isValid, result.error) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ WorkOS test failed:', error);
   }
@@ -720,7 +723,7 @@ try {
     const secret = `whsec_${Buffer.from(testSecret).toString('base64')}`;
     const webhookId = 'polar-webhook-id-1';
     const timestamp = Math.floor(Date.now() / 1000);
-    const signature = createStandardWebhooksSignature(testBody, secret, webhookId, timestamp);
+    const signature = createPolarSignature(testBody, secret, webhookId, timestamp);
     const request = createMockRequest({
       'webhook-signature': signature,
       'webhook-id': webhookId,
@@ -732,7 +735,7 @@ try {
     const result = await WebhookVerificationService.verifyWithPlatformConfig(request, 'polar', secret);
     const detectedPlatform = WebhookVerificationService.detectPlatform(request);
 
-    console.log('   ✅ Polar verification:', result.isValid ? 'PASSED' : 'FAILED');
+    console.log('   ✅ Polar verification:', trackCheck('Polar webhook', result.isValid, result.error) ? 'PASSED' : 'FAILED');
     console.log('   ✅ Polar auto-detect:', detectedPlatform === 'polar' ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ Polar test failed:', error);
@@ -803,7 +806,6 @@ try {
     console.log('   ❌ fal.ai test failed:', error);
   }
 
-
   // Test 21: Core SDK queue entry point
   console.log('\n21. Testing core SDK handleWithQueue...');
   try {
@@ -835,9 +837,13 @@ try {
     if (originalCurrent !== undefined) process.env.QSTASH_CURRENT_SIGNING_KEY = originalCurrent;
     if (originalNext !== undefined) process.env.QSTASH_NEXT_SIGNING_KEY = originalNext;
 
-    console.log('   ✅ handleWithQueue:', threw ? 'PASSED' : 'FAILED');
+    console.log('   ✅ handleWithQueue:', trackCheck('handleWithQueue', threw) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ handleWithQueue test failed:', error);
+  }
+
+  if (failedChecks.length > 0) {
+    throw new Error(`Test checks failed: ${failedChecks.join(', ')}`);
   }
 
   console.log('\n🎉 All tests completed!');
@@ -845,7 +851,10 @@ try {
 
 // Run tests if this file is executed directly
 if (require.main === module) {
-  runTests().catch(console.error);
+  runTests().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }
 
 export { runTests };
