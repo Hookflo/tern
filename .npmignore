@@ -1,0 +1,6 @@
+dist/test.js
+dist/test.d.ts
+dist/test-compiled.js
+dist/test-compiled.d.ts
+dist/adapters/testExpress.js
+dist/adapters/testExpress.d.ts

@@ -20,6 +20,17 @@ function getHeaderValue(
   return value;
 }
 
+export function hasParsedBody(
+  request: MinimalNodeRequest,
+): boolean {
+  const { body } = request;
+  return body !== null
+    && body !== undefined
+    && typeof body === 'object'
+    && !(body instanceof Uint8Array)
+    && !(body instanceof ArrayBuffer);
+}
+
 async function readIncomingMessageBodyAsBuffer(
   request: MinimalNodeRequest,
 ): Promise<Uint8Array> {
@@ -67,7 +78,7 @@ export async function extractRawBody(
     return new TextEncoder().encode(body);
   }
 
-  if (body !== null && body !== undefined && typeof body === 'object') {
+  if (hasParsedBody(request)) {
     console.warn(
       '[Tern] Warning: request body is already parsed as JSON. '
         + 'Signature verification may fail. '
