@@ -348,7 +348,7 @@ export class WebhookVerificationService {
         isValid: true,
         platform: 'custom',
         payload: payload as TPayload,
-        eventId: `custom:${idHeader}`,
+        eventId: `custom_${idHeader}`,
         metadata: {
           id: idHeader,
           algorithm: 'token-based',
