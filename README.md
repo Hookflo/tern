@@ -512,7 +512,40 @@ await controls.alert({
 - `controls.alert()` with no params sends a normal (non-DLQ) alert with internal defaults.
 - `controls.alert({ dlq: true, dlqId })` sends a DLQ alert and attempts replay internally via `controls.replay(dlqId)`.
 - `eventId` is auto-filled from `dlqId` for DLQ alerts.
-- Optional overrides like `message`, `metadata`, `source`, or `branding` can still be passed.
+- Optional overrides like `title`, `message`, `metadata`, `source`, or `branding` are used directly in Slack/Discord payloads.
+
+### Adapter-level alerts (works with and without queue)
+
+If you are not using Upstash controls, you can enable alerting directly in adapters by providing `alerts`.
+This works in **both queue and non-queue** modes.
+
+```ts
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  alerts: {
+    slack: { webhookUrl: process.env.SLACK_WEBHOOK_URL! },
+    discord: { webhookUrl: process.env.DISCORD_WEBHOOK_URL! },
+  },
+  alert: {
+    title: 'Alert Recieved',
+    message: 'Alert received in handler',
+  },
+  handler: async (payload, metadata) => {
+    return { ok: true };
+  },
+});
+```
+
+- In non-queue mode, alerts include `source` (platform) and canonical `eventId` from verification.
+- In queue mode, normal alerts are sent on successful enqueue (DLQ alerting remains Upstash-controls based).
+- Adapter-level alert calls do **not** auto-inject metadata; pass explicit alert fields via `alert` for predictable payloads.
+
+### Core SDK queue + alerts
+
+`WebhookVerificationService.handleWithQueue(...)` also supports alerting through the same `alerts` + `alert` options, so core SDK users get the same behavior as framework adapters.
 
 ## Testing
 

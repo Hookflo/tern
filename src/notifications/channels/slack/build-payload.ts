@@ -5,11 +5,13 @@ import { TERN_BRAND_URL } from "../../constants";
 export function buildSlackPayload(input: AlertPayloadBuilderInput) {
   const isDLQ = input.dlq;
 
-  const title = isDLQ ? "Dead Letter Queue — Event Failed" : "Webhook Received";
+  const fallbackTitle = isDLQ ? "Dead Letter Queue — Event Failed" : "Webhook Received";
+  const title = input.title?.trim() ? input.title : fallbackTitle;
 
-  const message = isDLQ
+  const fallbackMessage = isDLQ
     ? "Event exhausted all retries. Manual replay required."
     : "Event verified and queued for processing.";
+  const message = input.message?.trim() ? input.message : fallbackMessage;
 
   const fields = [
     input.source

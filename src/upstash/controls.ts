@@ -66,6 +66,12 @@ function deriveStatus(value: string): 'delivered' | 'failed' | 'retrying' {
   return 'retrying';
 }
 
+function withoutUndefined<T extends Record<string, unknown>>(value: T): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+  );
+}
+
 export function createTernControls(config: TernControlsConfig): TernControls {
   return {
     async dlq(): Promise<DLQMessage[]> {
@@ -200,12 +206,12 @@ export function createTernControls(config: TernControlsConfig): TernControls {
           ...options,
           source: resolvedSource,
           eventId: resolvedEventId || options.dlqId,
-          metadata: {
+          metadata: withoutUndefined({
             ...(options.metadata || {}),
             source: resolvedSource || options.metadata?.source,
             eventId: resolvedEventId || options.metadata?.eventId,
             ...replayMeta,
-          },
+          }),
         },
       );
     },

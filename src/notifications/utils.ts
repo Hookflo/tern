@@ -27,13 +27,62 @@ function asObject(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === 'object' ? value as Record<string, unknown> : undefined;
 }
 
+function pickNonEmptyString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    const normalized = asNonEmptyString(value);
+    if (normalized) return normalized;
+  }
+
+  return undefined;
+}
+
+function resolveSourceFromObject(value: unknown): string | undefined {
+  const object = asObject(value);
+  if (!object) return undefined;
+
+  return pickNonEmptyString(
+    object.platform,
+    object.provider,
+    object.source,
+    object.service,
+    object.origin,
+    object.type,
+  );
+}
+
+function resolveEventIdFromObject(value: unknown): string | undefined {
+  const object = asObject(value);
+  if (!object) return undefined;
+
+  return pickNonEmptyString(
+    object.eventId,
+    object.event_id,
+    object.id,
+    object.request_id,
+    object.webhook_id,
+    object.messageId,
+    object.message_id,
+  );
+}
+
 function resolveSource(options: SendAlertOptions): string | undefined {
   const metadata = options.metadata || {};
+  const metadataPayload = asObject(metadata.payload);
+  const metadataEvent = asObject(metadata.event);
+  const metadataData = asObject(metadata.data);
+  const metadataBody = asObject(metadata.body);
 
-  return asNonEmptyString(options.source)
-    || asNonEmptyString(metadata.source)
-    || asNonEmptyString(metadata.platform)
-    || asNonEmptyString(metadata.provider);
+  return pickNonEmptyString(
+    options.source,
+    metadata.source,
+    metadata.platform,
+    metadata.provider,
+    metadata.eventSource,
+    resolveSourceFromObject(metadataPayload),
+    resolveSourceFromObject(metadataEvent),
+    resolveSourceFromObject(metadataData),
+    resolveSourceFromObject(metadataBody),
+  );
 }
 
 function resolveEventId(options: SendAlertOptions): string | undefined {
@@ -42,17 +91,20 @@ function resolveEventId(options: SendAlertOptions): string | undefined {
   const metadataEvent = asObject(metadata.event);
   const metadataData = asObject(metadata.data);
 
-  return asNonEmptyString(options.eventId)
-    || asNonEmptyString(options.dlqId)
-    || asNonEmptyString(metadata.eventId)
-    || asNonEmptyString(metadata.messageId)
-    || asNonEmptyString(metadata.webhookId)
-    || asNonEmptyString(metadata.id)
-    || asNonEmptyString(metadataPayload?.id)
-    || asNonEmptyString(metadataPayload?.eventId)
-    || asNonEmptyString(metadataPayload?.request_id)
-    || asNonEmptyString(metadataEvent?.id)
-    || asNonEmptyString(metadataData?.id);
+  return pickNonEmptyString(
+    options.eventId,
+    options.dlqId,
+    metadata.eventId,
+    metadata.event_id,
+    metadata.messageId,
+    metadata.message_id,
+    metadata.webhookId,
+    metadata.webhook_id,
+    metadata.id,
+    resolveEventIdFromObject(metadataPayload),
+    resolveEventIdFromObject(metadataEvent),
+    resolveEventIdFromObject(metadataData),
+  );
 }
 
 export function resolveDestinations(config: AlertConfig): AlertDestination[] {
@@ -79,7 +131,7 @@ export function normalizeAlertOptions(options: SendAlertOptions): AlertPayloadBu
   return {
     ...options,
     dlq: isDlq,
-    source: resolveSource(options),
+    source: resolveSource(options) || 'unknown',
     title,
     message,
     severity,
