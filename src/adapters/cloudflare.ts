@@ -2,6 +2,8 @@ import { WebhookPlatform, NormalizeOptions } from '../types';
 import { WebhookVerificationService } from '../index';
 import { handleQueuedRequest, resolveQueueConfig } from '../upstash/queue';
 import { QueueOption } from '../upstash/types';
+import { dispatchWebhookAlert } from '../notifications/dispatch';
+import type { AlertConfig, SendAlertOptions } from '../notifications/types';
 
 export interface CloudflareWebhookHandlerOptions<TEnv = Record<string, unknown>, TPayload = any, TMetadata extends Record<string, unknown> = Record<string, unknown>, TResponse = unknown> {
   platform: WebhookPlatform;
@@ -10,6 +12,8 @@ export interface CloudflareWebhookHandlerOptions<TEnv = Record<string, unknown>,
   toleranceInSeconds?: number;
   normalize?: boolean | NormalizeOptions;
   queue?: QueueOption;
+  alerts?: AlertConfig;
+  alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
   onError?: (error: Error) => void;
   handler: (payload: TPayload, env: TEnv, metadata: TMetadata) => Promise<TResponse> | TResponse;
 }
@@ -28,13 +32,32 @@ export function createWebhookHandler<TEnv = Record<string, unknown>, TPayload = 
 
       if (options.queue) {
         const queueConfig = resolveQueueConfig(options.queue);
-        return handleQueuedRequest(request, {
+        const response = await handleQueuedRequest(request, {
           platform: options.platform,
           secret,
           queueConfig,
           handler: (payload: unknown, metadata: Record<string, unknown>) => options.handler(payload as TPayload, env, metadata as TMetadata),
           toleranceInSeconds: options.toleranceInSeconds ?? 300,
         });
+
+        if (response.ok) {
+          let eventId: string | undefined;
+          try {
+            const body = await response.clone().json() as Record<string, unknown>;
+            eventId = typeof body.eventId === 'string' ? body.eventId : undefined;
+          } catch {
+            eventId = undefined;
+          }
+
+          await dispatchWebhookAlert({
+            alerts: options.alerts,
+            source: options.platform,
+            eventId,
+            alert: options.alert,
+          });
+        }
+
+        return response;
       }
 
       const result = await WebhookVerificationService.verifyWithPlatformConfig(
@@ -48,6 +71,13 @@ export function createWebhookHandler<TEnv = Record<string, unknown>, TPayload = 
       if (!result.isValid) {
         return Response.json({ error: result.error, errorCode: result.errorCode, platform: result.platform, metadata: result.metadata }, { status: 400 });
       }
+
+      await dispatchWebhookAlert({
+        alerts: options.alerts,
+        source: options.platform,
+        eventId: result.eventId,
+        alert: options.alert,
+      });
 
       const data = await options.handler(result.payload as TPayload, env, (result.metadata || {}) as TMetadata);
       return Response.json(data);

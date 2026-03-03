@@ -5,11 +5,13 @@ import { severityColorMap } from "../../constants";
 export function buildDiscordPayload(input: AlertPayloadBuilderInput) {
   const isDLQ = input.dlq;
 
-  const title = isDLQ ? "Dead Letter Queue — Event Failed" : "Webhook Received";
+  const fallbackTitle = isDLQ ? "Dead Letter Queue — Event Failed" : "Webhook Received";
+  const title = input.title?.trim() ? input.title : fallbackTitle;
 
-  const description = isDLQ
+  const fallbackDescription = isDLQ
     ? "Event exhausted all retries. Manual replay required."
     : "Event verified and queued for processing.";
+  const description = input.message?.trim() ? input.message : fallbackDescription;
 
   const fields: Array<{ name: string; value: string; inline?: boolean }> = [];
 

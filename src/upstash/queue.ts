@@ -256,7 +256,11 @@ export async function handleReceive(
 
   try {
     await client.publishJSON(publishPayload);
-    return new Response(JSON.stringify({ queued: true }), {
+    return new Response(JSON.stringify({
+      queued: true,
+      platform,
+      eventId: verificationResult.eventId,
+    }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
     });

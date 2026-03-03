@@ -1,5 +1,8 @@
 import { createHmac, createHash, generateKeyPairSync, sign } from 'crypto';
 import { WebhookVerificationService, getPlatformsByCategory } from './index';
+import { normalizeAlertOptions } from './notifications/utils';
+import { buildSlackPayload } from './notifications/channels/slack';
+import { buildDiscordPayload } from './notifications/channels/discord';
 
 const testSecret = 'whsec_test_secret_key_12345';
 const testBody = JSON.stringify({ event: 'test', data: { id: '123' } });
@@ -840,6 +843,73 @@ async function runTests() {
     console.log('   ✅ handleWithQueue:', trackCheck('handleWithQueue', threw) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ handleWithQueue test failed:', error);
+  }
+
+  // Test 22: Custom alert title/message payload passthrough
+  console.log('\n22. Testing custom alert title/message payload...');
+  try {
+    const title = 'Alert Recieved';
+    const message = 'Alert received in handler';
+    const normalized = normalizeAlertOptions({
+      source: 'stripe',
+      eventId: 'evt_123',
+      title,
+      message,
+    });
+
+    const slackPayload = buildSlackPayload(normalized) as Record<string, unknown>;
+    const slackBlocks = (slackPayload.blocks || []) as Array<Record<string, unknown>>;
+    const slackPrimarySection = (slackBlocks[0]?.text || {}) as Record<string, unknown>;
+    const slackText = String(slackPrimarySection.text || '');
+
+    const discordPayload = buildDiscordPayload(normalized) as Record<string, unknown>;
+    const discordEmbeds = (discordPayload.embeds || []) as Array<Record<string, unknown>>;
+    const discordPrimary = (discordEmbeds[0] || {}) as Record<string, unknown>;
+
+    const pass =
+      String(slackPayload.text || '') === title
+      && slackText.includes(title)
+      && slackText.includes(message)
+      && String(discordPrimary.title || '') === title
+      && String(discordPrimary.description || '') === message;
+
+    console.log('   ✅ Alert custom title/message:', trackCheck('alert custom title/message', pass) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Alert custom title/message test failed:', error);
+  }
+
+  // Test 23: Alert payload fallback compatibility when title/message are empty
+  console.log('\n23. Testing alert title/message fallback compatibility...');
+  try {
+    const normalized = normalizeAlertOptions({
+      source: 'stripe',
+      eventId: 'evt_456',
+      title: '   ',
+      message: '',
+    });
+
+    const slackPayload = buildSlackPayload(normalized) as Record<string, unknown>;
+    const slackBlocks = (slackPayload.blocks || []) as Array<Record<string, unknown>>;
+    const slackPrimarySection = (slackBlocks[0]?.text || {}) as Record<string, unknown>;
+    const slackText = String(slackPrimarySection.text || '');
+
+    const discordPayload = buildDiscordPayload(normalized) as Record<string, unknown>;
+    const discordEmbeds = (discordPayload.embeds || []) as Array<Record<string, unknown>>;
+    const discordPrimary = (discordEmbeds[0] || {}) as Record<string, unknown>;
+
+    const fallbackTitle = 'Webhook Received';
+    const fallbackMessage = 'Event verified and queued for processing.';
+
+    const pass =
+      String(slackPayload.text || '') === fallbackTitle
+      && slackText.includes(fallbackTitle)
+      && slackText.includes(fallbackMessage)
+      && String(discordPrimary.title || '') === fallbackTitle
+      && String(discordPrimary.description || '') === fallbackMessage;
+
+    console.log('   ✅ Alert title/message fallback:', trackCheck('alert title/message fallback', pass) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Alert title/message fallback test failed:', error);
   }
 
   if (failedChecks.length > 0) {
