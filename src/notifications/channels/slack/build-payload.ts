@@ -1,32 +1,39 @@
-import type { AlertPayloadBuilderInput } from '../../types';
-import { compactMetadata } from '../../utils';
-import { TERN_BRAND_URL } from '../../constants';
+import type { AlertPayloadBuilderInput } from "../../types";
+import { compactMetadata } from "../../utils";
+import { TERN_BRAND_URL } from "../../constants";
 
 export function buildSlackPayload(input: AlertPayloadBuilderInput) {
+  const isDLQ = input.dlq;
+
+  const title = isDLQ ? "Dead Letter Queue — Event Failed" : "Webhook Received";
+
+  const message = isDLQ
+    ? "Event exhausted all retries. Manual replay required."
+    : "Event verified and queued for processing.";
+
   const fields = [
-    input.eventId ? { type: 'mrkdwn', text: `*Event ID*\n\`${input.eventId}\`` } : null,
-    input.source ? { type: 'mrkdwn', text: `*Source*\n${input.source}` } : null,
+    input.source
+      ? { type: "mrkdwn", text: `*Platform*\n${input.source}` }
+      : null,
     {
-      type: 'mrkdwn',
-      text: `*Severity*\n${input.severity.toUpperCase()}`,
+      type: "mrkdwn",
+      text: `*Severity*\n${input.severity.toLowerCase()}`,
     },
-    input.dlq ? { type: 'mrkdwn', text: '*Queue*\nDLQ' } : null,
+    isDLQ ? { type: "mrkdwn", text: "*Queue*\ndlq" } : null,
+    input.eventId
+      ? {
+          type: "mrkdwn",
+          text: `*${isDLQ ? "DLQ ID" : "Event ID"}*\n\`${input.eventId}\``,
+        }
+      : null,
   ].filter(Boolean);
 
   const blocks: Record<string, unknown>[] = [
     {
-      type: 'header',
+      type: "section",
       text: {
-        type: 'plain_text',
-        text: input.title,
-        emoji: true,
-      },
-    },
-    {
-      type: 'section',
-      text: {
-        type: 'mrkdwn',
-        text: input.message,
+        type: "mrkdwn",
+        text: `*${title}*\n${message}`,
       },
       fields,
     },
@@ -35,27 +42,27 @@ export function buildSlackPayload(input: AlertPayloadBuilderInput) {
   const metadataString = compactMetadata(input.metadata);
   if (metadataString) {
     blocks.push({
-      type: 'section',
+      type: "section",
       text: {
-        type: 'mrkdwn',
-        text: `*Details*\n\`\`\`${metadataString}\`\`\``,
+        type: "mrkdwn",
+        text: `\`\`\`${metadataString}\`\`\``,
       },
     });
   }
 
   if (input.replayUrl) {
     blocks.push({
-      type: 'actions',
+      type: "actions",
       elements: [
         {
-          type: 'button',
+          type: "button",
           text: {
-            type: 'plain_text',
-            text: input.replayLabel,
-            emoji: true,
+            type: "plain_text",
+            text: input.replayLabel ?? "Replay Event",
+            emoji: false,
           },
           url: input.replayUrl,
-          style: 'primary',
+          style: "danger",
         },
       ],
     });
@@ -63,10 +70,10 @@ export function buildSlackPayload(input: AlertPayloadBuilderInput) {
 
   if (input.branding !== false) {
     blocks.push({
-      type: 'context',
+      type: "context",
       elements: [
         {
-          type: 'mrkdwn',
+          type: "mrkdwn",
           text: `Alert from <${TERN_BRAND_URL}|Tern>`,
         },
       ],
@@ -74,7 +81,7 @@ export function buildSlackPayload(input: AlertPayloadBuilderInput) {
   }
 
   return {
-    text: `${input.title} - ${input.message}`,
+    text: title,
     blocks,
   };
 }
