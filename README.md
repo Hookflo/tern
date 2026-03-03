@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 
-Stop writing webhook verification from scratch. **Tern** handles signature verification for Stripe, GitHub, Clerk, Shopify, and 15+ more platforms — with one consistent API.
+Stop writing webhook verification from scratch. **Tern** handles signature verification for Stripe, GitHub, Clerk, Shopify, and 15+ more platforms — with one consistent API. Need more than just verification? Tern also supports **reliable inbound webhook delivery** via Upstash QStash — automatic retries, DLQ management, replay controls, and Slack/Discord alerting. Bring your own Upstash account (BYOK) and close the full loop on inbound webhook operations.
 
 ```bash
 npm install @hookflo/tern
@@ -19,13 +19,9 @@ npm install @hookflo/tern
 
 <img width="1200" height="630" alt="Tern – Webhook Verification Framework" src="https://tern.hookflo.com/og-image.webp" style="border-radius: 10px; margin-top: 16px;" />
 
-**Built for modern webhook pipelines:** cross-platform signature verification out of the box, optional Upstash-powered reliable event delivery, and Slack/Discord alerting to close the loop for inbound webhook operations at scale.
-
 **Navigation**
 
-[The Problem](#the-problem) · [Quick Start](#quick-start) · [Framework Integrations](#framework-integrations) · [Supported Platforms](#supported-platforms) · [Queue vs Non-Queue Delivery](#queue-vs-non-queue-delivery) · [Upstash Queue Setup](#upstash-queue-setup) · [Key Features](#key-features) · [Custom Config](#custom-platform-configuration) · [Alerting](#alerting-simple--dlq) · [API Reference](#api-reference) · [Troubleshooting](#troubleshooting) · [Contributing](#contributing) · [Support](#support)
-
----
+[The Problem](#the-problem) · [Quick Start](#quick-start) · [Framework Integrations](#framework-integrations) · [Supported Platforms](#supported-platforms) · [Key Features](#key-features) · [Reliable Delivery & Alerting](#reliable-delivery--alerting) · [Custom Config](#custom-platform-configuration) · [API Reference](#api-reference) · [Troubleshooting](#troubleshooting) · [Contributing](#contributing) · [Support](#support)
 
 ## The Problem
 
@@ -177,15 +173,15 @@ export const onRequestPost = createWebhookHandler({
 
 > Don't see your platform? [Use custom config](#custom-platform-configuration) or [open an issue](https://github.com/Hookflo/tern/issues).
 
-### Platform signature notes (important)
+### Platform signature notes
 
 - **Standard Webhooks style** platforms (Clerk, Dodo Payments, Polar, ReplicateAI) commonly use a secret that starts with `whsec_...`.
 - **ReplicateAI**: copy the webhook signing secret from your Replicate webhook settings and pass it directly as `secret`.
-- **fal.ai**: supports JWKS key resolution out of the box — use `secret: ''` if you want auto key resolution, or pass a PEM public key explicitly.
+- **fal.ai**: supports JWKS key resolution out of the box — use `secret: ''` for auto key resolution, or pass a PEM public key explicitly.
 
 ### Note on fal.ai
 
-fal.ai uses **ED25519** signing. When using Tern with fal.ai, pass an **empty string** as the webhook secret — the public key is resolved automatically via JWKS from fal's infrastructure.
+fal.ai uses **ED25519** signing. Pass an **empty string** as the webhook secret — the public key is resolved automatically via JWKS from fal's infrastructure.
 
 ```typescript
 import { createWebhookHandler } from '@hookflo/tern/nextjs';
@@ -197,9 +193,22 @@ export const POST = createWebhookHandler({
 });
 ```
 
-## Queue vs Non-Queue Delivery
+## Key Features
 
-Tern supports both modes. Queue mode is **optional / opt-in**.
+- **Queue + Retry Support** — optional Upstash QStash-based reliable inbound webhook delivery with automatic retries and deduplication
+- **DLQ + Replay Controls** — list failed events, replay DLQ messages, and trigger replay-aware alerts
+- **Alerting** — built-in Slack + Discord alerts through adapters and controls
+- **Auto Platform Detection** — detect and verify across multiple providers via `verifyAny` with diagnostics on failure
+- **Algorithm Agnostic** — HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, ED25519, and custom algorithms
+- **Zero Dependencies** — no bloat, no supply chain risk
+- **Framework Agnostic** — works with Express, Next.js, Cloudflare Workers, Deno, and any runtime with Web Crypto
+- **Body-Parser Safe** — reads raw bodies correctly to prevent signature mismatch
+- **Strong TypeScript** — strict types, full inference, comprehensive type definitions
+- **Stable Error Codes** — `INVALID_SIGNATURE`, `MISSING_SIGNATURE`, `TIMESTAMP_EXPIRED`, and more
+
+## Reliable Delivery & Alerting
+
+Tern supports both immediate and queue-based webhook processing. Queue mode is **optional and opt-in** — bring your own Upstash account (BYOK).
 
 ### Non-queue mode (default)
 
@@ -210,7 +219,6 @@ export const POST = createWebhookHandler({
   platform: 'stripe',
   secret: process.env.STRIPE_WEBHOOK_SECRET!,
   handler: async (payload) => {
-    // immediate handling
     return { ok: true };
   },
 });
@@ -226,20 +234,16 @@ export const POST = createWebhookHandler({
   secret: process.env.STRIPE_WEBHOOK_SECRET!,
   queue: true,
   handler: async (payload, metadata) => {
-    // invoked by QStash delivery
     return { processed: true, eventId: metadata.id };
   },
 });
 ```
 
-## Upstash Queue Setup
+### Upstash Queue Setup
 
-1. Create a QStash project in Upstash: https://console.upstash.com/qstash
-2. Copy keys from your project:
-   - `QSTASH_TOKEN`
-   - `QSTASH_CURRENT_SIGNING_KEY`
-   - `QSTASH_NEXT_SIGNING_KEY`
-3. Add those keys to your environment.
+1. Create a QStash project at [console.upstash.com/qstash](https://console.upstash.com/qstash)
+2. Copy your keys: `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`
+3. Add them to your environment and set `queue: true`
 4. Enable queue with `queue: true` (or explicit queue config).
 
 Direct queue config option:
@@ -253,20 +257,45 @@ queue: {
 }
 ```
 
-Get started + signature docs: https://upstash.com/docs/qstash/howto/signature
+### Simple alerting
 
-## Key Features
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
 
-- **Algorithm Agnostic** — HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, ED25519, and custom algorithms
-- **Zero Dependencies** — no bloat, no supply chain risk
-- **Framework Agnostic** — works with Express, Next.js, Cloudflare Workers, Deno, and any runtime with Web Crypto
-- **Body-Parser Safe** — reads raw bodies correctly to prevent signature mismatch
-- **Strong TypeScript** — strict types, full inference, comprehensive type definitions
-- **Stable Error Codes** — `INVALID_SIGNATURE`, `MISSING_SIGNATURE`, `TIMESTAMP_EXPIRED`, and more
-- **Auto Platform Detection** — detect and verify via `verifyAny` with diagnostics on failure
-- **Queue + Retry Support** — optional Upstash QStash-based enqueue/process flow with deduplication
-- **DLQ + Replay Controls** — list failed events, replay DLQ messages, and trigger replay-aware alerts
-- **Alerting** — built-in Slack + Discord alerts through adapters and controls
+export const POST = createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  alerts: {
+    slack: { webhookUrl: process.env.SLACK_WEBHOOK_URL! },
+    discord: { webhookUrl: process.env.DISCORD_WEBHOOK_URL! },
+  },
+  handler: async () => ({ ok: true }),
+});
+```
+
+### DLQ-aware alerting and replay
+
+```typescript
+import { createTernControls } from '@hookflo/tern/upstash';
+
+const controls = createTernControls({
+  token: process.env.QSTASH_TOKEN!,
+  notifications: {
+    slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
+    discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
+  },
+});
+
+const dlqMessages = await controls.dlq();
+if (dlqMessages.length > 0) {
+  await controls.alert({
+    dlq: true,
+    dlqId: dlqMessages[0].dlqId,
+    severity: 'warning',
+    message: 'Replay attempted for failed event',
+  });
+}
+```
 
 ## Custom Platform Configuration
 
@@ -310,48 +339,6 @@ const svixConfig = {
 
 See the [SignatureConfig type](https://tern.hookflo.com) for all options.
 
-## Alerting (Simple + DLQ)
-
-### Adapter-level simple alerting
-
-```typescript
-import { createWebhookHandler } from '@hookflo/tern/nextjs';
-
-export const POST = createWebhookHandler({
-  platform: 'stripe',
-  secret: process.env.STRIPE_WEBHOOK_SECRET!,
-  alerts: {
-    slack: { webhookUrl: process.env.SLACK_WEBHOOK_URL! },
-    discord: { webhookUrl: process.env.DISCORD_WEBHOOK_URL! },
-  },
-  handler: async () => ({ ok: true }),
-});
-```
-
-### DLQ-aware alerting and replay
-
-```typescript
-import { createTernControls } from '@hookflo/tern/upstash';
-
-const controls = createTernControls({
-  token: process.env.QSTASH_TOKEN!,
-  notifications: {
-    slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
-    discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
-  },
-});
-
-const dlqMessages = await controls.dlq();
-if (dlqMessages.length > 0) {
-  await controls.alert({
-    dlq: true,
-    dlqId: dlqMessages[0].dlqId,
-    severity: 'warning',
-    message: 'Replay attempted for failed event',
-  });
-}
-```
-
 ## API Reference
 
 ### `WebhookVerificationService`
@@ -359,8 +346,8 @@ if (dlqMessages.length > 0) {
 | Method | Description |
 |---|---|
 | `verify(request, config)` | Verify with full config object |
-| `verifyWithPlatformConfig(request, platform, secret, tolerance?, normalize?)` | Shorthand for built-in platforms |
-| `verifyAny(request, secrets, tolerance?, normalize?)` | Auto-detect platform and verify |
+| `verifyWithPlatformConfig(request, platform, secret, tolerance?)` | Shorthand for built-in platforms |
+| `verifyAny(request, secrets, tolerance?)` | Auto-detect platform and verify |
 | `verifyTokenAuth(request, webhookId, webhookToken)` | Token-based verification |
 | `verifyTokenBased(request, webhookId, webhookToken)` | Alias for `verifyTokenAuth` |
 | `handleWithQueue(request, options)` | Core SDK helper for queue receive/process |
