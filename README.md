@@ -481,6 +481,39 @@ interface WebhookConfig {
 }
 ```
 
+
+## Alerting (Slack + Discord)
+
+For the simplest DX, configure webhooks once in `createTernControls` and call `controls.alert(...)`.
+
+```ts
+import { createTernControls } from '@hookflo/tern/upstash';
+
+const controls = createTernControls({
+  token: process.env.QSTASH_TOKEN!,
+  notifications: {
+    slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
+    discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
+  },
+});
+
+// Non-DLQ event alert with defaults
+await controls.alert();
+
+// DLQ alert + replay flow
+await controls.alert({
+  dlq: true,
+  dlqId: 'dlq_xxx',
+});
+```
+
+### Behavior
+
+- `controls.alert()` with no params sends a normal (non-DLQ) alert with internal defaults.
+- `controls.alert({ dlq: true, dlqId })` sends a DLQ alert and attempts replay internally via `controls.replay(dlqId)`.
+- `eventId` is auto-filled from `dlqId` for DLQ alerts.
+- Optional overrides like `message`, `metadata`, `source`, or `branding` can still be passed.
+
 ## Testing
 
 ### Run All Tests

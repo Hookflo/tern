@@ -2,9 +2,12 @@ import {
   DLQMessage,
   EventFilter,
   ReplayResult,
+  TernControls,
   TernControlsConfig,
   TernEvent,
+  ControlAlertOptions,
 } from './types';
+import { sendAlert } from '../notifications/send-alert';
 
 const QSTASH_API_BASE = 'https://qstash.upstash.io/v2';
 
@@ -63,7 +66,7 @@ function deriveStatus(value: string): 'delivered' | 'failed' | 'retrying' {
   return 'retrying';
 }
 
-export function createTernControls(config: TernControlsConfig) {
+export function createTernControls(config: TernControlsConfig): TernControls {
   return {
     async dlq(): Promise<DLQMessage[]> {
       const response = await fetch(`${QSTASH_API_BASE}/dlq`, {
@@ -139,6 +142,52 @@ export function createTernControls(config: TernControlsConfig) {
         : mapped;
 
       return statusFiltered.slice(0, filter.limit ?? 20);
+    },
+
+    async alert(options: ControlAlertOptions = {}) {
+      let replayMeta: Record<string, unknown> = {};
+
+      if (options.dlq) {
+        if (!options.dlqId || options.dlqId.trim() === '') {
+          throw new Error('[tern] controls.alert() with dlq: true requires dlqId.');
+        }
+
+        try {
+          const replay = await this.replay(options.dlqId);
+          replayMeta = {
+            replayAttempted: true,
+            replaySuccess: replay.success,
+            replayedAt: replay.replayedAt,
+            replayDlqId: options.dlqId,
+          };
+        } catch (error) {
+          replayMeta = {
+            replayAttempted: true,
+            replaySuccess: false,
+            replayDlqId: options.dlqId,
+            replayError: (error as Error).message,
+          };
+        }
+      }
+
+      return sendAlert(
+        {
+          slack: config.notifications?.slackWebhookUrl
+            ? { webhookUrl: config.notifications.slackWebhookUrl }
+            : undefined,
+          discord: config.notifications?.discordWebhookUrl
+            ? { webhookUrl: config.notifications.discordWebhookUrl }
+            : undefined,
+        },
+        {
+          ...options,
+          eventId: options.eventId || options.dlqId,
+          metadata: {
+            ...(options.metadata || {}),
+            ...replayMeta,
+          },
+        },
+      );
     },
   };
 }

@@ -429,5 +429,6 @@ export {
   getPlatformsByCategory,
 } from './normalization/simple';
 export * from './adapters';
+export * from './alerts';
 
 export default WebhookVerificationService;
