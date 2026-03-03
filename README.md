@@ -19,6 +19,8 @@ npm install @hookflo/tern
 
 <img width="1200" height="630" alt="Tern – Webhook Verification Framework" src="https://tern.hookflo.com/og-image.webp" style="border-radius: 10px; margin-top: 16px;" />
 
+**Built for modern webhook pipelines:** cross-platform signature verification out of the box, optional Upstash-powered reliable event delivery, and Slack/Discord alerting to close the loop for inbound webhook operations at scale.
+
 **Navigation**
 
 [The Problem](#the-problem) · [Quick Start](#quick-start) · [Framework Integrations](#framework-integrations) · [Supported Platforms](#supported-platforms) · [Queue vs Non-Queue Delivery](#queue-vs-non-queue-delivery) · [Upstash Queue Setup](#upstash-queue-setup) · [Key Features](#key-features) · [Custom Config](#custom-platform-configuration) · [Alerting](#alerting-simple--dlq) · [API Reference](#api-reference) · [Troubleshooting](#troubleshooting) · [Contributing](#contributing) · [Support](#support)
@@ -77,6 +79,27 @@ const result = await WebhookVerificationService.verifyAny(request, {
 });
 
 console.log(`Verified ${result.platform} webhook`);
+```
+
+### Core SDK (runtime-agnostic)
+
+Use Tern without framework adapters in any runtime that supports the Web `Request` API.
+
+```typescript
+import { WebhookVerificationService } from '@hookflo/tern';
+
+const verified = await WebhookVerificationService.verifyWithPlatformConfig(
+  request,
+  'workos',
+  process.env.WORKOS_WEBHOOK_SECRET!,
+  300,
+);
+
+if (!verified.isValid) {
+  return new Response(JSON.stringify({ error: verified.error }), { status: 400 });
+}
+
+// verified.payload + verified.metadata available here
 ```
 
 ## Framework Integrations
@@ -235,6 +258,7 @@ Get started + signature docs: https://upstash.com/docs/qstash/howto/signature
 ## Key Features
 
 - **Algorithm Agnostic** — HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, ED25519, and custom algorithms
+- **Zero Dependencies** — no bloat, no supply chain risk
 - **Framework Agnostic** — works with Express, Next.js, Cloudflare Workers, Deno, and any runtime with Web Crypto
 - **Body-Parser Safe** — reads raw bodies correctly to prevent signature mismatch
 - **Strong TypeScript** — strict types, full inference, comprehensive type definitions
