@@ -19,9 +19,11 @@ npm install @hookflo/tern
 
 <img width="1200" height="630" alt="Tern – Webhook Verification Framework" src="https://tern.hookflo.com/og-image.webp" style="border-radius: 10px; margin-top: 16px;" />
 
+**Built for modern webhook pipelines:** cross-platform signature verification out of the box, optional Upstash-powered reliable event delivery, and Slack/Discord alerting to close the loop for inbound webhook operations at scale.
+
 **Navigation**
 
-[The Problem](#the-problem) · [Quick Start](#quick-start) · [Framework Integrations](#framework-integrations) · [Supported Platforms](#supported-platforms) · [Custom Config](#custom-platform-configuration) · [API Reference](#api-reference) · [Contributing](#contributing)
+[The Problem](#the-problem) · [Quick Start](#quick-start) · [Framework Integrations](#framework-integrations) · [Supported Platforms](#supported-platforms) · [Queue vs Non-Queue Delivery](#queue-vs-non-queue-delivery) · [Upstash Queue Setup](#upstash-queue-setup) · [Key Features](#key-features) · [Custom Config](#custom-platform-configuration) · [Alerting](#alerting-simple--dlq) · [API Reference](#api-reference) · [Troubleshooting](#troubleshooting) · [Contributing](#contributing) · [Support](#support)
 
 ---
 
@@ -79,22 +81,47 @@ const result = await WebhookVerificationService.verifyAny(request, {
 console.log(`Verified ${result.platform} webhook`);
 ```
 
+### Core SDK (runtime-agnostic)
+
+Use Tern without framework adapters in any runtime that supports the Web `Request` API.
+
+```typescript
+import { WebhookVerificationService } from '@hookflo/tern';
+
+const verified = await WebhookVerificationService.verifyWithPlatformConfig(
+  request,
+  'workos',
+  process.env.WORKOS_WEBHOOK_SECRET!,
+  300,
+);
+
+if (!verified.isValid) {
+  return new Response(JSON.stringify({ error: verified.error }), { status: 400 });
+}
+
+// verified.payload + verified.metadata available here
+```
+
 ## Framework Integrations
 
 ### Express.js
 
 ```typescript
+import express from 'express';
 import { createWebhookMiddleware } from '@hookflo/tern/express';
+
+const app = express();
 
 app.post(
   '/webhooks/stripe',
+  express.raw({ type: '*/*' }),
   createWebhookMiddleware({
     platform: 'stripe',
     secret: process.env.STRIPE_WEBHOOK_SECRET!,
   }),
   (req, res) => {
-    const event = (req as any).webhook.payload;
-    res.json({ received: true });
+    const event = (req as any).webhook?.payload;
+    res.json({ received: true, event });
   },
 );
 ```
@@ -107,7 +134,7 @@ import { createWebhookHandler } from '@hookflo/tern/nextjs';
 export const POST = createWebhookHandler({
   platform: 'github',
   secret: process.env.GITHUB_WEBHOOK_SECRET!,
-  handler: async (payload) => ({ received: true }),
+  handler: async (payload, metadata) => ({ received: true, delivery: metadata.delivery }),
 });
 ```
 
@@ -116,10 +143,10 @@ export const POST = createWebhookHandler({
 ```typescript
 import { createWebhookHandler } from '@hookflo/tern/cloudflare';
 
-const handleStripe = createWebhookHandler({
+export const onRequestPost = createWebhookHandler({
   platform: 'stripe',
   secretEnv: 'STRIPE_WEBHOOK_SECRET',
-  handler: async (payload) => ({ received: true }),
+  handler: async (payload) => ({ received: true, payload }),
 });
 ```
 
@@ -150,17 +177,83 @@ const handleStripe = createWebhookHandler({
 
 > Don't see your platform? [Use custom config](#custom-platform-configuration) or [open an issue](https://github.com/Hookflo/tern/issues).
 
+### Platform signature notes (important)
+
+- **Standard Webhooks style** platforms (Clerk, Dodo Payments, Polar, ReplicateAI) commonly use a secret that starts with `whsec_...`.
+- **ReplicateAI**: copy the webhook signing secret from your Replicate webhook settings and pass it directly as `secret`.
+- **fal.ai**: supports JWKS key resolution out of the box — use `secret: ''` if you want auto key resolution, or pass a PEM public key explicitly.
+
 ### Note on fal.ai
 
 fal.ai uses **ED25519** signing. When using Tern with fal.ai, pass an **empty string** as the webhook secret — the public key is resolved automatically via JWKS from fal's infrastructure.
 
 ```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
 export const POST = createWebhookHandler({
   platform: 'falai',
   secret: '', // fal.ai resolves the public key automatically
   handler: async (payload, metadata) => ({ received: true, requestId: metadata.requestId }),
 });
 ```
+
+## Queue vs Non-Queue Delivery
+
+Tern supports both modes. Queue mode is **optional / opt-in**.
+
+### Non-queue mode (default)
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  handler: async (payload) => {
+    // immediate handling
+    return { ok: true };
+  },
+});
+```
+
+### Queue mode (opt-in)
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  queue: true,
+  handler: async (payload, metadata) => {
+    // invoked by QStash delivery
+    return { processed: true, eventId: metadata.id };
+  },
+});
+```
+
+## Upstash Queue Setup
+
+1. Create a QStash project in Upstash: https://console.upstash.com/qstash
+2. Copy keys from your project:
+   - `QSTASH_TOKEN`
+   - `QSTASH_CURRENT_SIGNING_KEY`
+   - `QSTASH_NEXT_SIGNING_KEY`
+3. Add those keys to your environment.
+4. Enable queue with `queue: true` (or explicit queue config).
+
+Direct queue config option:
+
+```typescript
+queue: {
+  token: process.env.QSTASH_TOKEN!,
+  signingKey: process.env.QSTASH_CURRENT_SIGNING_KEY!,
+  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY!,
+  retries: 5,
+}
+```
+
+Get started + signature docs: https://upstash.com/docs/qstash/howto/signature
 
 ## Key Features
 
@@ -169,8 +262,11 @@ export const POST = createWebhookHandler({
 - **Framework Agnostic** — works with Express, Next.js, Cloudflare Workers, Deno, and any runtime with Web Crypto
 - **Body-Parser Safe** — reads raw bodies correctly to prevent signature mismatch
 - **Strong TypeScript** — strict types, full inference, comprehensive type definitions
-- **Stable Error Codes** — `INVALID_SIGNATURE`, `MISSING_SIGNATURE`, `TIMESTAMP_TOO_OLD`, and more
-- **Alerting** — built-in Slack + Discord alerts via adapter
+- **Stable Error Codes** — `INVALID_SIGNATURE`, `MISSING_SIGNATURE`, `TIMESTAMP_EXPIRED`, and more
+- **Auto Platform Detection** — detect and verify via `verifyAny` with diagnostics on failure
+- **Queue + Retry Support** — optional Upstash QStash-based enqueue/process flow with deduplication
+- **DLQ + Replay Controls** — list failed events, replay DLQ messages, and trigger replay-aware alerts
+- **Alerting** — built-in Slack + Discord alerts through adapters and controls
 
 ## Custom Platform Configuration
 
@@ -184,14 +280,14 @@ const result = await WebhookVerificationService.verify(request, {
     algorithm: 'hmac-sha256',
     headerName: 'x-acme-signature',
     headerFormat: 'raw',
-    timestampHeader: 'x-acme-timestamp', // optional — only if provider sends timestamp separately
+    timestampHeader: 'x-acme-timestamp',
     timestampFormat: 'unix',
     payloadFormat: 'timestamped',
   },
 });
 ```
 
-### Svix / Standard Webhooks format (Clerk, Dodo Payments, etc.)
+### Svix / Standard Webhooks format (Clerk, Dodo Payments, ReplicateAI, etc.)
 
 ```typescript
 const svixConfig = {
@@ -214,7 +310,9 @@ const svixConfig = {
 
 See the [SignatureConfig type](https://tern.hookflo.com) for all options.
 
-## Alerting (Slack + Discord)
+## Alerting (Simple + DLQ)
+
+### Adapter-level simple alerting
 
 ```typescript
 import { createWebhookHandler } from '@hookflo/tern/nextjs';
@@ -226,8 +324,32 @@ export const POST = createWebhookHandler({
     slack: { webhookUrl: process.env.SLACK_WEBHOOK_URL! },
     discord: { webhookUrl: process.env.DISCORD_WEBHOOK_URL! },
   },
-  handler: async (payload) => ({ ok: true }),
+  handler: async () => ({ ok: true }),
 });
+```
+
+### DLQ-aware alerting and replay
+
+```typescript
+import { createTernControls } from '@hookflo/tern/upstash';
+
+const controls = createTernControls({
+  token: process.env.QSTASH_TOKEN!,
+  notifications: {
+    slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
+    discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
+  },
+});
+
+const dlqMessages = await controls.dlq();
+if (dlqMessages.length > 0) {
+  await controls.alert({
+    dlq: true,
+    dlqId: dlqMessages[0].dlqId,
+    severity: 'warning',
+    message: 'Replay attempted for failed event',
+  });
+}
 ```
 
 ## API Reference
@@ -237,9 +359,21 @@ export const POST = createWebhookHandler({
 | Method | Description |
 |---|---|
 | `verify(request, config)` | Verify with full config object |
-| `verifyWithPlatformConfig(request, platform, secret, tolerance?)` | Shorthand for built-in platforms |
-| `verifyAny(request, secrets, tolerance?)` | Auto-detect platform and verify |
+| `verifyWithPlatformConfig(request, platform, secret, tolerance?, normalize?)` | Shorthand for built-in platforms |
+| `verifyAny(request, secrets, tolerance?, normalize?)` | Auto-detect platform and verify |
 | `verifyTokenAuth(request, webhookId, webhookToken)` | Token-based verification |
+| `verifyTokenBased(request, webhookId, webhookToken)` | Alias for `verifyTokenAuth` |
+| `handleWithQueue(request, options)` | Core SDK helper for queue receive/process |
+
+### `@hookflo/tern/upstash`
+
+| Export | Description |
+|---|---|
+| `createTernControls(config)` | Read DLQ/events, replay, and send alerts |
+| `handleQueuedRequest(request, options)` | Route request between receive/process modes |
+| `handleReceive(request, platform, secret, queueConfig, tolerance)` | Verify webhook and enqueue to QStash |
+| `handleProcess(request, handler, queueConfig)` | Verify QStash signature and process payload |
+| `resolveQueueConfig(queue)` | Resolve `queue: true` from env or explicit object |
 
 ### `WebhookVerificationResult`
 
@@ -247,10 +381,10 @@ export const POST = createWebhookHandler({
 interface WebhookVerificationResult {
   isValid: boolean;
   error?: string;
-  errorCode?: 'INVALID_SIGNATURE' | 'MISSING_SIGNATURE' | 'TIMESTAMP_TOO_OLD' | string;
+  errorCode?: string;
   platform: WebhookPlatform;
   payload?: any;
-  eventId?: string;        // canonical: 'stripe:evt_123'
+  eventId?: string;
   metadata?: {
     timestamp?: string;
     id?: string | null;
