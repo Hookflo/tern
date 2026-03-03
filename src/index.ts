@@ -18,6 +18,8 @@ import {
 } from './platforms/algorithms';
 import { normalizePayload } from './normalization/simple';
 import type { QueueOption } from './upstash/types';
+import type { AlertConfig, SendAlertOptions } from './notifications/types';
+import { dispatchWebhookAlert } from './notifications/dispatch';
 
 export class WebhookVerificationService {
   static async verify<TPayload = unknown>(
@@ -390,6 +392,8 @@ export class WebhookVerificationService {
       platform: WebhookPlatform;
       secret: string;
       queue: QueueOption;
+      alerts?: AlertConfig;
+      alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
       handler: (payload: unknown, metadata: Record<string, unknown>) => Promise<unknown> | unknown;
       toleranceInSeconds?: number;
     },
@@ -397,13 +401,32 @@ export class WebhookVerificationService {
     const { resolveQueueConfig, handleQueuedRequest } = await import('./upstash/queue');
 
     const queueConfig = resolveQueueConfig(options.queue);
-    return handleQueuedRequest(request, {
+    const response = await handleQueuedRequest(request, {
       platform: options.platform,
       secret: options.secret,
       queueConfig,
       handler: options.handler,
       toleranceInSeconds: options.toleranceInSeconds ?? 300,
     });
+
+    if (response.ok) {
+      let eventId: string | undefined;
+      try {
+        const body = await response.clone().json() as Record<string, unknown>;
+        eventId = typeof body.eventId === 'string' ? body.eventId : undefined;
+      } catch {
+        eventId = undefined;
+      }
+
+      await dispatchWebhookAlert({
+        alerts: options.alerts,
+        source: options.platform,
+        eventId,
+        alert: options.alert,
+      });
+    }
+
+    return response;
   }
   static async verifyTokenBased<TPayload = unknown>(
     request: Request,
@@ -429,5 +452,6 @@ export {
   getPlatformsByCategory,
 } from './normalization/simple';
 export * from './adapters';
+export * from './alerts';
 
 export default WebhookVerificationService;

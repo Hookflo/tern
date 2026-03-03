@@ -1,4 +1,5 @@
 import { WebhookPlatform } from '../types';
+import type { SendAlertOptions, SendAlertSummary } from '../notifications/types';
 
 export type QueueOption =
   | true
@@ -18,6 +19,10 @@ export interface ResolvedQueueConfig {
 
 export interface TernControlsConfig {
   token: string;
+  notifications?: {
+    slackWebhookUrl?: string;
+    discordWebhookUrl?: string;
+  };
 }
 
 export interface DLQMessage {
@@ -54,4 +59,21 @@ export interface QueuedMessage {
   platform: WebhookPlatform;
   payload: unknown;
   metadata: Record<string, unknown>;
+}
+
+export type ControlAlertOptions =
+  | (SendAlertOptions & {
+      dlq: true;
+      dlqId: string;
+    })
+  | (SendAlertOptions & {
+      dlq?: false;
+      dlqId?: never;
+    });
+
+export interface TernControls {
+  dlq: () => Promise<DLQMessage[]>;
+  replay: (dlqId: string) => Promise<ReplayResult>;
+  events: (filter?: EventFilter) => Promise<TernEvent[]>;
+  alert: (options?: ControlAlertOptions) => Promise<SendAlertSummary>;
 }

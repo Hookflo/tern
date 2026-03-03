@@ -1,241 +1,324 @@
-# Tern - Algorithm Agnostic Webhook Verification Framework
+# Tern — Webhook Verification for Every Platform
 
-A robust, algorithm-agnostic webhook verification framework that supports multiple platforms with accurate signature verification and payload retrieval.
-The same framework that secures webhook verification at [Hookflo](https://hookflo.com).
-
-⭐ Star this repo to support the project and help others discover it!  
-
-💬 Join the discussion & contribute in our Discord: [Hookflo Community](https://discord.com/invite/SNmCjU97nr)
-
-```bash
-npm install @hookflo/tern
-```
+**When Stripe, Shopify, Clerk or any other platform sends a webhook to your server, how do you know it's real and not a forged request?** Tern checks the signature for you — one simplified TypeScript SDK, any provider, no boilerplate.
 
 [![npm version](https://img.shields.io/npm/v/@hookflo/tern)](https://www.npmjs.com/package/@hookflo/tern)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](https://www.typescriptlang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 
-Tern is a zero-dependency TypeScript framework for robust webhook verification across multiple platforms and algorithms.
+Stop writing webhook verification from scratch. **Tern** handles signature verification for Stripe, GitHub, Clerk, Shopify, and 15+ more platforms — with one consistent API.
 
-**Runtime requirements:** Node.js 18+ (or any runtime with Web Crypto + Fetch APIs, such as Deno and Cloudflare Workers).
-
-<img width="1396" height="470" style="border-radius: 10px" alt="tern bird nature" src="https://github.com/user-attachments/assets/5f0da3e6-1aba-4f88-a9d7-9d8698845c39" />
-
-## Features
-
-- **Algorithm Agnostic**: Decouples platform logic from signature verification — verify based on cryptographic algorithm, not hardcoded platform rules.
-Supports HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, and custom algorithms
-
-- **Platform Specific**: Accurate implementations for **Stripe, GitHub, Clerk**, and other platforms
-- **Flexible Configuration**: Custom signature configurations for any webhook format
-- **Type Safe**: Full TypeScript support with comprehensive type definitions
-- **Framework Agnostic**: Works with Express.js, Next.js, Cloudflare Workers, and more
-- **Body-Parser Safe Adapters**: Read raw request bodies correctly to avoid signature mismatch issues
-- **Multi-Provider Verification**: Verify and auto-detect across multiple providers with one API
-- **Payload Normalization**: Opt-in normalized event shape to reduce provider lock-in
-- **Category-aware Migration**: Normalize within provider categories (payment/auth/infrastructure) for safe platform switching
-- **Strong Typed Normalized Schemas**: Category types like `PaymentWebhookNormalized` and `AuthWebhookNormalized` for safe migrations
-- **Foundational Error Taxonomy**: Stable `errorCode` values (`INVALID_SIGNATURE`, `MISSING_SIGNATURE`, etc.)
-
-## Why Tern?
-
-Most webhook verifiers are tightly coupled to specific platforms or hardcoded logic. Tern introduces a flexible, scalable, algorithm-first approach that:
-
-- Works across all major platforms
-- Supports custom signing logic
-- Keeps your code clean and modular
-- Avoids unnecessary dependencies
-- Is written in strict, modern TypeScript
-
-## Installation
+> Need reliable delivery too? Tern supports inbound webhook delivery via Upstash QStash — automatic retries, DLQ management, replay controls, and Slack/Discord alerting. Bring your own Upstash account (BYOK).
 
 ```bash
 npm install @hookflo/tern
 ```
 
+> The same framework powering webhook verification at [Hookflo](https://hookflo.com).
+
+⭐ Star this repo to help others discover it · 💬 [Join our Discord](https://discord.com/invite/SNmCjU97nr)
+
+<img width="1200" height="630" alt="Tern – Webhook Verification Framework" src="https://tern.hookflo.com/og-image.webp" style="border-radius: 10px; margin-top: 16px;" />
+
+**Navigation**
+
+[The Problem](#the-problem) · [Quick Start](#quick-start) · [Framework Integrations](#framework-integrations) · [Supported Platforms](#supported-platforms) · [Key Features](#key-features) · [Reliable Delivery & Alerting](#reliable-delivery--alerting) · [Custom Config](#custom-platform-configuration) · [API Reference](#api-reference) · [Troubleshooting](#troubleshooting) · [Contributing](#contributing) · [Support](#support)
+
+## The Problem
+
+Every webhook provider has a different signature format. You end up writing — and maintaining — the same verification boilerplate over and over:
+
+```typescript
+// ❌ Without Tern — different logic for every provider
+const stripeSignature = req.headers['stripe-signature'];
+const parts = stripeSignature.split(',');
+// ... 30 more lines just for Stripe
+
+const githubSignature = req.headers['x-hub-signature-256'];
+// ... completely different 20 lines for GitHub
+```
+
+```typescript
+// ✅ With Tern — one API for everything
+const result = await WebhookVerificationService.verify(request, {
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+});
+```
+
 ## Quick Start
 
-### Basic Usage
+### Verify a single platform
 
 ```typescript
 import { WebhookVerificationService } from '@hookflo/tern';
 
 const result = await WebhookVerificationService.verify(request, {
   platform: 'stripe',
-  secret: 'whsec_your_stripe_webhook_secret',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
   toleranceInSeconds: 300,
 });
 
 if (result.isValid) {
-  console.log('Webhook verified!', result.eventId, result.payload);
+  console.log('Verified!', result.eventId, result.payload);
 } else {
-  console.log('Verification failed:', result.error);
+  console.log('Failed:', result.error, result.errorCode);
 }
 ```
 
-### Universal Verification (auto-detect platform)
+### Auto-detect platform
 
 ```typescript
-import { WebhookVerificationService } from '@hookflo/tern';
-
 const result = await WebhookVerificationService.verifyAny(request, {
   stripe: process.env.STRIPE_WEBHOOK_SECRET,
   github: process.env.GITHUB_WEBHOOK_SECRET,
   clerk: process.env.CLERK_WEBHOOK_SECRET,
 });
 
-if (result.isValid) {
-  console.log(`Verified ${result.platform} webhook`);
-}
+console.log(`Verified ${result.platform} webhook`);
 ```
 
-### Category-aware Payload Normalization
+### Core SDK (runtime-agnostic)
 
-### Strongly-Typed Normalized Payloads
-
-```typescript
-import {
-  WebhookVerificationService,
-  PaymentWebhookNormalized,
-} from '@hookflo/tern';
-
-const result = await WebhookVerificationService.verifyWithPlatformConfig<PaymentWebhookNormalized>(
-  request,
-  'stripe',
-  process.env.STRIPE_WEBHOOK_SECRET!,
-  300,
-  { enabled: true, category: 'payment' },
-);
-
-if (result.isValid && result.payload?.event === 'payment.succeeded') {
-  // result.payload is strongly typed
-  console.log(result.payload.amount, result.payload.customer_id);
-}
-```
-
-```typescript
-import { WebhookVerificationService, getPlatformsByCategory } from '@hookflo/tern';
-
-// Discover migration-compatible providers in the same category
-const paymentPlatforms = getPlatformsByCategory('payment');
-// ['stripe', 'polar', ...]
-
-const result = await WebhookVerificationService.verifyWithPlatformConfig(
-  request,
-  'stripe',
-  process.env.STRIPE_WEBHOOK_SECRET!,
-  300,
-  {
-    enabled: true,
-    category: 'payment',
-    includeRaw: true,
-  },
-);
-
-console.log(result.payload);
-// {
-//   event: 'payment.succeeded',
-//   amount: 5000,
-//   currency: 'USD',
-//   customer_id: 'cus_123',
-//   transaction_id: 'pi_123',
-//   provider: 'stripe',
-//   category: 'payment',
-//   _raw: {...}
-// }
-```
-
-### Platform-Specific Configurations
+Use Tern without framework adapters in any runtime that supports the Web `Request` API.
 
 ```typescript
 import { WebhookVerificationService } from '@hookflo/tern';
 
-// Stripe webhook
-const stripeConfig = {
-  platform: 'stripe',
-  secret: 'whsec_your_stripe_webhook_secret',
-  toleranceInSeconds: 300,
-};
+const verified = await WebhookVerificationService.verifyWithPlatformConfig(
+  request,
+  'workos',
+  process.env.WORKOS_WEBHOOK_SECRET!,
+  300,
+);
 
-// GitHub webhook
-const githubConfig = {
-  platform: 'github',
-  secret: 'your_github_webhook_secret',
-  toleranceInSeconds: 300,
-};
+if (!verified.isValid) {
+  return new Response(JSON.stringify({ error: verified.error }), { status: 400 });
+}
 
-// Clerk webhook
-const clerkConfig = {
-  platform: 'clerk',
-  secret: 'whsec_your_clerk_webhook_secret',
-  toleranceInSeconds: 300,
-};
-
-const result = await WebhookVerificationService.verify(request, stripeConfig);
+// verified.payload + verified.metadata available here
 ```
+
+## Framework Integrations
+
+### Express.js
+
+```typescript
+import express from 'express';
+import { createWebhookMiddleware } from '@hookflo/tern/express';
+
+const app = express();
+
+app.post(
+  '/webhooks/stripe',
+  express.raw({ type: '*/*' }),
+  createWebhookMiddleware({
+    platform: 'stripe',
+    secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  }),
+  (req, res) => {
+    const event = (req as any).webhook?.payload;
+    res.json({ received: true, event });
+  },
+);
+```
+
+### Next.js App Router
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'github',
+  secret: process.env.GITHUB_WEBHOOK_SECRET!,
+  handler: async (payload, metadata) => ({ received: true, delivery: metadata.delivery }),
+});
+```
+
+### Cloudflare Workers
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/cloudflare';
+
+export const onRequestPost = createWebhookHandler({
+  platform: 'stripe',
+  secretEnv: 'STRIPE_WEBHOOK_SECRET',
+  handler: async (payload) => ({ received: true, payload }),
+});
+```
+
+> All built-in platforms work across Express, Next.js, and Cloudflare adapters. You only change `platform` and `secret` per route.
 
 ## Supported Platforms
 
-### Stripe OK Tested
-- **Signature Format**: `t={timestamp},v1={signature}`
-- **Algorithm**: HMAC-SHA256
-- **Payload Format**: `{timestamp}.{body}`
+| Platform | Algorithm | Status |
+|---|---|---|
+| **Stripe** | HMAC-SHA256 | ✅ Tested |
+| **GitHub** | HMAC-SHA256 | ✅ Tested |
+| **Clerk** | HMAC-SHA256 (base64) | ✅ Tested |
+| **Shopify** | HMAC-SHA256 (base64) | ✅ Tested |
+| **Dodo Payments** | HMAC-SHA256 | ✅ Tested |
+| **Paddle** | HMAC-SHA256 | ✅ Tested |
+| **Lemon Squeezy** | HMAC-SHA256 | ✅ Tested |
+| **Polar** | HMAC-SHA256 | ✅ Tested |
+| **WorkOS** | HMAC-SHA256 | ✅ Tested |
+| **ReplicateAI** | HMAC-SHA256 | ✅ Tested |
+| **GitLab** | Token-based | ✅ Tested |
+| **fal.ai** | ED25519 | ✅ Tested |
+| **Sentry** | HMAC-SHA256 | ✅ Tested |
+| **Grafana** | HMAC-SHA256 | ✅ Tested |
+| **Doppler** | HMAC-SHA256 | ✅ Tested |
+| **Sanity** | HMAC-SHA256 | ✅ Tested |
+| **Razorpay** | HMAC-SHA256 | 🔄 Pending |
+| **Vercel** | HMAC-SHA256 | 🔄 Pending |
 
-### GitHub
-- **Signature Format**: `sha256={signature}`
-- **Algorithm**: HMAC-SHA256
-- **Payload Format**: Raw body
+> Don't see your platform? [Use custom config](#custom-platform-configuration) or [open an issue](https://github.com/Hookflo/tern/issues).
 
-### Clerk
-- **Signature Format**: `v1,{signature}` (space-separated)
-- **Algorithm**: HMAC-SHA256 with base64 encoding
-- **Payload Format**: `{id}.{timestamp}.{body}`
+### Platform signature notes
 
-### Other Platforms
-- **Dodo Payments**: HMAC-SHA256 OK Tested
-- **Paddle**: HMAC-SHA256 OK Tested
-- **Razorpay**: HMAC-SHA256 Pending
-- **Lemon Squeezy**: HMAC-SHA256 OK Tested
-- **WorkOS**: HMAC-SHA256 (`workos-signature`, `t/v1`) OK Tested
-- **WooCommerce**: HMAC-SHA256 (base64 signature) Pending
-- **ReplicateAI**: HMAC-SHA256 (Standard Webhooks style) OK Tested
-- **Sentry**: HMAC-SHA256 (`sentry-hook-signature`) with JSON-stringified payload + issue-alert fallback
-- **Grafana (v12+)**: HMAC-SHA256 (`x-grafana-alerting-signature`) with optional timestamped payload
-- **Doppler**: HMAC-SHA256 (`x-doppler-signature`, `sha256=` prefix)
-- **Sanity**: Stripe-compatible HMAC-SHA256 (`sanity-webhook-signature`, `t=/v1=`)
-- **fal.ai**: ED25519 (`x-fal-webhook-signature`)
-- **Shopify**: HMAC-SHA256 (base64 signature) OK Tested
-- **Vercel**: HMAC-SHA256 Pending
-- **Polar**: HMAC-SHA256 OK Tested
-- **GitLab**: Token-based authentication OK Tested
+- **Standard Webhooks style** platforms (Clerk, Dodo Payments, Polar, ReplicateAI) commonly use a secret that starts with `whsec_...`.
+- **ReplicateAI**: copy the webhook signing secret from your Replicate webhook settings and pass it directly as `secret`.
+- **fal.ai**: supports JWKS key resolution out of the box — use `secret: ''` for auto key resolution, or pass a PEM public key explicitly.
+
+### Note on fal.ai
+
+fal.ai uses **ED25519** signing. Pass an **empty string** as the webhook secret — the public key is resolved automatically via JWKS from fal's infrastructure.
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'falai',
+  secret: '', // fal.ai resolves the public key automatically
+  handler: async (payload, metadata) => ({ received: true, requestId: metadata.requestId }),
+});
+```
+
+## Key Features
+
+- **Queue + Retry Support** — optional Upstash QStash-based reliable inbound webhook delivery with automatic retries and deduplication
+- **DLQ + Replay Controls** — list failed events, replay DLQ messages, and trigger replay-aware alerts
+- **Alerting** — built-in Slack + Discord alerts through adapters and controls
+- **Auto Platform Detection** — detect and verify across multiple providers via `verifyAny` with diagnostics on failure
+- **Algorithm Agnostic** — HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, ED25519, and custom algorithms
+- **Zero Dependencies** — no bloat, no supply chain risk
+- **Framework Agnostic** — works with Express, Next.js, Cloudflare Workers, Deno, and any runtime with Web Crypto
+- **Body-Parser Safe** — reads raw bodies correctly to prevent signature mismatch
+- **Strong TypeScript** — strict types, full inference, comprehensive type definitions
+- **Stable Error Codes** — `INVALID_SIGNATURE`, `MISSING_SIGNATURE`, `TIMESTAMP_EXPIRED`, and more
+
+## Reliable Delivery & Alerting
+
+Tern supports both immediate and queue-based webhook processing. Queue mode is **optional and opt-in** — bring your own Upstash account (BYOK).
+
+### Non-queue mode (default)
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  handler: async (payload) => {
+    return { ok: true };
+  },
+});
+```
+
+### Queue mode (opt-in)
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  queue: true,
+  handler: async (payload, metadata) => {
+    return { processed: true, eventId: metadata.id };
+  },
+});
+```
+
+### Upstash Queue Setup
+
+1. Create a QStash project at [console.upstash.com/qstash](https://console.upstash.com/qstash)
+2. Copy your keys: `QSTASH_TOKEN`, `QSTASH_CURRENT_SIGNING_KEY`, `QSTASH_NEXT_SIGNING_KEY`
+3. Add them to your environment and set `queue: true`
+4. Enable queue with `queue: true` (or explicit queue config).
+
+Direct queue config option:
+
+```typescript
+queue: {
+  token: process.env.QSTASH_TOKEN!,
+  signingKey: process.env.QSTASH_CURRENT_SIGNING_KEY!,
+  nextSigningKey: process.env.QSTASH_NEXT_SIGNING_KEY!,
+  retries: 5,
+}
+```
+
+### Simple alerting
+
+```typescript
+import { createWebhookHandler } from '@hookflo/tern/nextjs';
+
+export const POST = createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  alerts: {
+    slack: { webhookUrl: process.env.SLACK_WEBHOOK_URL! },
+    discord: { webhookUrl: process.env.DISCORD_WEBHOOK_URL! },
+  },
+  handler: async () => ({ ok: true }),
+});
+```
+
+### DLQ-aware alerting and replay
+
+```typescript
+import { createTernControls } from '@hookflo/tern/upstash';
+
+const controls = createTernControls({
+  token: process.env.QSTASH_TOKEN!,
+  notifications: {
+    slackWebhookUrl: process.env.SLACK_WEBHOOK_URL,
+    discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
+  },
+});
+
+const dlqMessages = await controls.dlq();
+if (dlqMessages.length > 0) {
+  await controls.alert({
+    dlq: true,
+    dlqId: dlqMessages[0].dlqId,
+    severity: 'warning',
+    message: 'Replay attempted for failed event',
+  });
+}
+```
 
 ## Custom Platform Configuration
 
-This framework is fully configuration-driven. `timestampHeader` is optional and only needed for providers that send timestamp separately from the signature. You can verify webhooks from any provider—even if it is not built-in—by supplying a custom configuration object. This allows you to support new or proprietary platforms instantly, without waiting for a library update.
-
-### Example: Standard HMAC-SHA256 Webhook
+Not built-in? Configure any webhook provider without waiting for a library update.
 
 ```typescript
-import { WebhookVerificationService } from '@hookflo/tern';
-
-const acmeConfig = {
+const result = await WebhookVerificationService.verify(request, {
   platform: 'acmepay',
   secret: 'acme_secret',
   signatureConfig: {
     algorithm: 'hmac-sha256',
     headerName: 'x-acme-signature',
     headerFormat: 'raw',
-    // Optional: only include when provider sends timestamp in a separate header
     timestampHeader: 'x-acme-timestamp',
     timestampFormat: 'unix',
-    payloadFormat: 'timestamped', // signs as {timestamp}.{body}
-  }
-};
-
-const result = await WebhookVerificationService.verify(request, acmeConfig);
+    payloadFormat: 'timestamped',
+  },
+});
 ```
 
-### Example: Svix/Standard Webhooks (Clerk, Dodo Payments, etc.)
+### Svix / Standard Webhooks format (Clerk, Dodo Payments, ReplicateAI, etc.)
 
 ```typescript
 const svixConfig = {
@@ -251,354 +334,89 @@ const svixConfig = {
     customConfig: {
       payloadFormat: '{id}.{timestamp}.{body}',
       idHeader: 'webhook-id',
-      // encoding: 'base64' // only if the provider uses base64, otherwise omit
-    }
-  }
-};
-
-const result = await WebhookVerificationService.verify(request, svixConfig);
-```
-
-You can configure any combination of algorithm, header, payload, and encoding. See the `SignatureConfig` type for all options.
-
-For `platform: 'custom'`, default config remains compatible with token-style providers through `signatureConfig.customConfig` (`type: 'token-based'`, `idHeader: 'x-webhook-id'`), and you can override it per provider.
-
-## Verified Platforms (continuously tested)
-- **Stripe**
-- **GitHub**
-- **Clerk**
-- **Dodo Payments**
-- **GitLab**
-- **WorkOS**
-- **Lemon Squeezy**
-- **Paddle**
-- **Shopify**
-- **Polar**
-- **ReplicateAI**
-
-Other listed platforms are supported but may have lighter coverage depending on release cycle.
-
-
-## Custom Configurations
-
-### Custom HMAC-SHA256
-
-```typescript
-const customConfig = {
-  platform: 'custom',
-  secret: 'your_custom_secret',
-  signatureConfig: {
-    algorithm: 'hmac-sha256',
-    headerName: 'x-custom-signature',
-    headerFormat: 'prefixed',
-    prefix: 'sha256=',
-    payloadFormat: 'raw',
+    },
   },
 };
 ```
 
-### Custom Timestamped Payload
-
-```typescript
-const timestampedConfig = {
-  platform: 'custom',
-  secret: 'your_custom_secret',
-  signatureConfig: {
-    algorithm: 'hmac-sha256',
-    headerName: 'x-webhook-signature',
-    headerFormat: 'raw',
-    timestampHeader: 'x-webhook-timestamp',
-    timestampFormat: 'unix',
-    payloadFormat: 'timestamped',
-  },
-};
-```
-
-## Framework Integration
-
-### Express.js middleware (body-parser safe)
-
-```typescript
-import express from 'express';
-import { createWebhookMiddleware } from '@hookflo/tern/express';
-
-const app = express();
-
-app.post(
-  '/webhooks/stripe',
-  createWebhookMiddleware({
-    platform: 'stripe',
-    secret: process.env.STRIPE_WEBHOOK_SECRET!,
-    normalize: true,
-  }),
-  (req, res) => {
-    const event = (req as any).webhook.payload;
-    res.json({ received: true, event: event.event });
-  },
-);
-```
-
-### Next.js App Router
-
-```typescript
-import { createWebhookHandler } from '@hookflo/tern/nextjs';
-
-export const POST = createWebhookHandler({
-  platform: 'github',
-  secret: process.env.GITHUB_WEBHOOK_SECRET!,
-  handler: async (payload) => ({ received: true, event: payload.event ?? payload.type }),
-});
-```
-
-### Cloudflare Workers
-
-```typescript
-import { createWebhookHandler } from '@hookflo/tern/cloudflare';
-
-const handleStripe = createWebhookHandler({
-  platform: 'stripe',
-  secretEnv: 'STRIPE_WEBHOOK_SECRET',
-  handler: async (payload) => ({ received: true, event: payload.event ?? payload.type }),
-});
-
-export default {
-  async fetch(request: Request, env: Record<string, string>) {
-    if (new URL(request.url).pathname === '/webhooks/stripe') {
-      return handleStripe(request, env);
-    }
-    return new Response('Not Found', { status: 404 });
-  },
-};
-```
-
-
-### Are new platforms available in framework middlewares automatically?
-
-Yes. All built-in platforms are available in:
-- `createWebhookMiddleware` (`@hookflo/tern/express`)
-- `createWebhookHandler` (`@hookflo/tern/nextjs`)
-- `createWebhookHandler` (`@hookflo/tern/cloudflare`)
-
-You only change `platform` and `secret` per route.
-
-### Platform route examples (Express / Next.js / Cloudflare)
-
-```typescript
-// Express (Razorpay)
-app.post('/webhooks/razorpay', createWebhookMiddleware({
-  platform: 'razorpay',
-  secret: process.env.RAZORPAY_WEBHOOK_SECRET!,
-}), (req, res) => res.json({ ok: true }));
-
-// Next.js (WorkOS)
-export const POST = createWebhookHandler({
-  platform: 'workos',
-  secret: process.env.WORKOS_WEBHOOK_SECRET!,
-  handler: async (payload) => ({ received: true, type: payload.type }),
-});
-
-// Cloudflare (Lemon Squeezy)
-const handleLemonSqueezy = createWebhookHandler({
-  platform: 'lemonsqueezy',
-  secretEnv: 'LEMON_SQUEEZY_WEBHOOK_SECRET',
-  handler: async () => ({ received: true }),
-});
-```
-
-### fal.ai production usage
-
-fal.ai uses **ED25519** (`x-fal-webhook-signature`) and signs:
-`{request-id}.{user-id}.{timestamp}.{sha256(body)}`.
-
-Use one of these strategies:
-1. **Public key as `secret`** (recommended for framework adapters).
-2. **JWKS auto-resolution** via the built-in fal.ai config (`x-fal-webhook-key-id` + fal JWKS URL).
-
-```typescript
-// Next.js with explicit public key PEM as secret
-export const POST = createWebhookHandler({
-  platform: 'falai',
-  secret: process.env.FAL_PUBLIC_KEY_PEM!,
-  handler: async (payload, metadata) => ({ received: true, requestId: metadata.requestId }),
-});
-```
+See the [SignatureConfig type](https://tern.hookflo.com) for all options.
 
 ## API Reference
 
-### WebhookVerificationService
+### `WebhookVerificationService`
 
-#### `verify(request: Request, config: WebhookConfig): Promise<WebhookVerificationResult>`
+| Method | Description |
+|---|---|
+| `verify(request, config)` | Verify with full config object |
+| `verifyWithPlatformConfig(request, platform, secret, tolerance?)` | Shorthand for built-in platforms |
+| `verifyAny(request, secrets, tolerance?)` | Auto-detect platform and verify |
+| `verifyTokenAuth(request, webhookId, webhookToken)` | Token-based verification |
+| `verifyTokenBased(request, webhookId, webhookToken)` | Alias for `verifyTokenAuth` |
+| `handleWithQueue(request, options)` | Core SDK helper for queue receive/process |
 
-Verifies a webhook using the provided configuration.
+### `@hookflo/tern/upstash`
 
-#### `verifyWithPlatformConfig(request: Request, platform: WebhookPlatform, secret: string, toleranceInSeconds?: number, normalize?: boolean | NormalizeOptions): Promise<WebhookVerificationResult>`
+| Export | Description |
+|---|---|
+| `createTernControls(config)` | Read DLQ/events, replay, and send alerts |
+| `handleQueuedRequest(request, options)` | Route request between receive/process modes |
+| `handleReceive(request, platform, secret, queueConfig, tolerance)` | Verify webhook and enqueue to QStash |
+| `handleProcess(request, handler, queueConfig)` | Verify QStash signature and process payload |
+| `resolveQueueConfig(queue)` | Resolve `queue: true` from env or explicit object |
 
-Simplified verification using platform-specific configurations with optional payload normalization.
-
-#### `verifyAny(request: Request, secrets: Record<string, string>, toleranceInSeconds?: number, normalize?: boolean | NormalizeOptions): Promise<WebhookVerificationResult>`
-
-Auto-detects platform from headers and verifies against one or more provider secrets.
-
-#### `verifyTokenAuth(request: Request, webhookId: string, webhookToken: string): Promise<WebhookVerificationResult>`
-
-Verifies token-based webhooks.
-
-> `verifyTokenBased(...)` remains available as a backward-compatible alias and still works for existing integrations.
-
-#### `getPlatformsByCategory(category: 'payment' | 'auth' | 'ecommerce' | 'infrastructure'): WebhookPlatform[]`
-
-Returns built-in providers that normalize into a shared schema for the given migration category.
-
-### Types
-
-#### `WebhookVerificationResult`
+### `WebhookVerificationResult`
 
 ```typescript
 interface WebhookVerificationResult {
   isValid: boolean;
   error?: string;
-  errorCode?: WebhookErrorCode;
+  errorCode?: string;
   platform: WebhookPlatform;
   payload?: any;
-  eventId?: string; // canonical ID, e.g. 'stripe:evt_123'
+  eventId?: string;
   metadata?: {
     timestamp?: string;
-    id?: string | null; // raw provider ID (legacy)
+    id?: string | null;
     [key: string]: any;
   };
 }
 ```
 
-#### `WebhookConfig`
-
-```typescript
-interface WebhookConfig {
-  platform: WebhookPlatform;
-  secret: string;
-  toleranceInSeconds?: number;
-  signatureConfig?: SignatureConfig;
-  normalize?: boolean | NormalizeOptions;
-}
-```
-
-## Testing
-
-### Run All Tests
-
-```bash
-npm test
-```
-
-### Platform-Specific Testing
-
-```bash
-# Test a specific platform
-npm run test:platform stripe
-
-# Test all platforms
-npm run test:all
-```
-
-### Documentation and Analysis
-
-```bash
-# Fetch platform documentation
-npm run docs:fetch
-
-# Generate diffs between versions
-npm run docs:diff
-
-# Analyze changes and generate reports
-npm run docs:analyze
-```
-
-## Examples
-
-See the [examples.ts](./src/examples.ts) file for comprehensive usage examples.
-
-## Contributing
-
-We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for detailed information on how to:
-
-- Set up your development environment
-- Add new platforms
-- Write tests
-- Submit pull requests
-- Follow our code style guidelines
-
-### Quick Start for Contributors
-
-1. Fork the repository
-2. Clone your fork: `git clone https://github.com/your-username/tern.git`
-3. Create a feature branch: `git checkout -b feature/your-feature-name`
-4. Make your changes
-5. Run tests: `npm test`
-6. Submit a pull request
-
-### Adding a New Platform
-
-See our [Platform Development Guide](CONTRIBUTING.md#adding-new-platforms) for step-by-step instructions on adding support for new webhook platforms.
-
-## Code of Conduct
-
-This project adheres to our [Code of Conduct](CODE_OF_CONDUCT.md). Please read it before contributing.
-
-## 📄 License
-
-MIT License - see [LICENSE](./LICENSE) for details.
-
-## 🔗 Links
-
-- [Documentation](./USAGE.md)
-- [Framework Summary](./FRAMEWORK_SUMMARY.md)
-- [Architecture Guide](./ARCHITECTURE.md)
-- [Issues](https://github.com/Hookflo/tern/issues)
-
-
 ## Troubleshooting
 
-### `Module not found: Can't resolve "@hookflo/tern/nextjs"`
-
-If this happens in a Next.js project, it usually means one of these:
-
-1. You installed an older published package version that does not include subpath exports yet.
-2. Lockfile still points to an old tarball/version.
-3. `node_modules` cache is stale after upgrading.
-
-Fix steps:
+**`Module not found: Can't resolve "@hookflo/tern/nextjs"`**
 
 ```bash
-# in your Next.js app
 npm i @hookflo/tern@latest
 rm -rf node_modules package-lock.json .next
 npm i
 ```
 
-Then verify resolution:
+**Signature verification failing?**
+
+Make sure you're passing the **raw** request body — not a parsed JSON object. Tern's framework adapters handle this automatically. If you're using the core service directly, ensure body parsers aren't consuming the stream before Tern does.
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add platforms, write tests, and submit PRs.
 
 ```bash
-node -e "console.log(require.resolve('@hookflo/tern/nextjs'))"
+git clone https://github.com/Hookflo/tern.git
+cd tern
+npm install
+npm test
 ```
 
-If you are testing this repo locally before publish:
+## Support
 
-```bash
-# inside /workspace/tern
-npm run build
-npm pack
+Have a question, running into an issue, or want to request a platform? We're happy to help.
 
-# inside your other project
-npm i /path/to/hookflo-tern-<version>.tgz
-```
+Join the conversation on [Discord](https://discord.com/invite/SNmCjU97nr) or [open an issue](https://github.com/Hookflo/tern/issues) on GitHub — all questions, bug reports, and platform requests are welcome.
 
-Minimal Next.js App Router usage:
+## Links
 
-```ts
-import { createWebhookHandler } from '@hookflo/tern/nextjs';
+[Detailed Usage & Docs](https://tern.hookflo.com) · [npm Package](https://www.npmjs.com/package/@hookflo/tern) · [Discord Community](https://discord.com/invite/SNmCjU97nr) · [Issues](https://github.com/Hookflo/tern/issues)
 
-export const POST = createWebhookHandler({
-  platform: 'stripe',
-  secret: process.env.STRIPE_WEBHOOK_SECRET!,
-  handler: async (payload) => ({ received: true, event: payload.event ?? payload.type }),
-});
-```
+## License
+
+MIT © [Hookflo](https://hookflo.com)

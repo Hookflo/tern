@@ -7,6 +7,8 @@ import { WebhookVerificationService } from '../index';
 import { handleQueuedRequest, resolveQueueConfig } from '../upstash/queue';
 import { QueueOption } from '../upstash/types';
 import { toWebRequest, MinimalNodeRequest, hasParsedBody } from './shared';
+import { dispatchWebhookAlert } from '../notifications/dispatch';
+import type { AlertConfig, SendAlertOptions } from '../notifications/types';
 
 export interface ExpressLikeResponse {
   status: (code: number) => ExpressLikeResponse;
@@ -25,6 +27,8 @@ export interface ExpressWebhookMiddlewareOptions {
   toleranceInSeconds?: number;
   normalize?: boolean | NormalizeOptions;
   queue?: QueueOption;
+  alerts?: AlertConfig;
+  alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
   onError?: (error: Error) => void;
   strictRawBody?: boolean;
 }
@@ -70,6 +74,17 @@ export function createWebhookMiddleware(
         }
 
         res.status(queueResponse.status).json(body ?? {});
+
+        if (queueResponse.ok) {
+          const queueResult = body && typeof body === 'object' ? body as Record<string, unknown> : undefined;
+          await dispatchWebhookAlert({
+            alerts: options.alerts,
+            source: options.platform,
+            eventId: typeof queueResult?.eventId === 'string' ? queueResult.eventId : undefined,
+            alert: options.alert,
+          });
+        }
+
         return;
       }
 
@@ -92,6 +107,14 @@ export function createWebhookMiddleware(
       }
 
       req.webhook = result;
+
+      await dispatchWebhookAlert({
+        alerts: options.alerts,
+        source: options.platform,
+        eventId: result.eventId,
+        alert: options.alert,
+      });
+
       next();
     } catch (error) {
       options.onError?.(error as Error);

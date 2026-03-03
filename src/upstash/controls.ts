@@ -2,9 +2,12 @@ import {
   DLQMessage,
   EventFilter,
   ReplayResult,
+  TernControls,
   TernControlsConfig,
   TernEvent,
+  ControlAlertOptions,
 } from './types';
+import { sendAlert } from '../notifications/send-alert';
 
 const QSTASH_API_BASE = 'https://qstash.upstash.io/v2';
 
@@ -63,7 +66,13 @@ function deriveStatus(value: string): 'delivered' | 'failed' | 'retrying' {
   return 'retrying';
 }
 
-export function createTernControls(config: TernControlsConfig) {
+function withoutUndefined<T extends Record<string, unknown>>(value: T): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entryValue]) => entryValue !== undefined),
+  );
+}
+
+export function createTernControls(config: TernControlsConfig): TernControls {
   return {
     async dlq(): Promise<DLQMessage[]> {
       const response = await fetch(`${QSTASH_API_BASE}/dlq`, {
@@ -139,6 +148,72 @@ export function createTernControls(config: TernControlsConfig) {
         : mapped;
 
       return statusFiltered.slice(0, filter.limit ?? 20);
+    },
+
+    async alert(options: ControlAlertOptions = {}) {
+      let replayMeta: Record<string, unknown> = {};
+      let resolvedSource = options.source;
+      let resolvedEventId = options.eventId;
+
+      if (options.dlq && (!resolvedSource || !resolvedEventId)) {
+        try {
+          const dlqMessages = await this.dlq();
+          const matchingMessage = dlqMessages.find((message) => message.dlqId === options.dlqId);
+
+          resolvedSource = resolvedSource || matchingMessage?.platform;
+          resolvedEventId = resolvedEventId || matchingMessage?.id;
+        } catch (error) {
+          replayMeta = {
+            ...replayMeta,
+            dlqLookupError: (error as Error).message,
+          };
+        }
+      }
+
+      if (options.dlq) {
+        if (!options.dlqId || options.dlqId.trim() === '') {
+          throw new Error('[tern] controls.alert() with dlq: true requires dlqId.');
+        }
+
+        try {
+          const replay = await this.replay(options.dlqId);
+          replayMeta = {
+            replayAttempted: true,
+            replaySuccess: replay.success,
+            replayedAt: replay.replayedAt,
+            replayDlqId: options.dlqId,
+          };
+        } catch (error) {
+          replayMeta = {
+            replayAttempted: true,
+            replaySuccess: false,
+            replayDlqId: options.dlqId,
+            replayError: (error as Error).message,
+          };
+        }
+      }
+
+      return sendAlert(
+        {
+          slack: config.notifications?.slackWebhookUrl
+            ? { webhookUrl: config.notifications.slackWebhookUrl }
+            : undefined,
+          discord: config.notifications?.discordWebhookUrl
+            ? { webhookUrl: config.notifications.discordWebhookUrl }
+            : undefined,
+        },
+        {
+          ...options,
+          source: resolvedSource,
+          eventId: resolvedEventId || options.dlqId,
+          metadata: withoutUndefined({
+            ...(options.metadata || {}),
+            source: resolvedSource || options.metadata?.source,
+            eventId: resolvedEventId || options.metadata?.eventId,
+            ...replayMeta,
+          }),
+        },
+      );
     },
   };
 }
