@@ -7,7 +7,9 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 
-Stop writing webhook verification from scratch. **Tern** handles signature verification for Stripe, GitHub, Clerk, Shopify, and 15+ more platforms — with one consistent API. Need more than just verification? Tern also supports **reliable inbound webhook delivery** via Upstash QStash — automatic retries, DLQ management, replay controls, and Slack/Discord alerting. Bring your own Upstash account (BYOK) and close the full loop on inbound webhook operations.
+Stop writing webhook verification from scratch. **Tern** handles signature verification for Stripe, GitHub, Clerk, Shopify, and 15+ more platforms — with one consistent API.
+
+> Need reliable delivery too? Tern supports inbound webhook delivery via Upstash QStash — automatic retries, DLQ management, replay controls, and Slack/Discord alerting. Bring your own Upstash account (BYOK).
 
 ```bash
 npm install @hookflo/tern
