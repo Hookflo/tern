@@ -1,7 +1,6 @@
 # Tern — Webhook Verification for Every Platform
 
-**When Stripe, Shopify Clerk or any other platform sends a webhook to your server, how do you know it's real and not a forged request?
-** Tern checks the signature for you — one Simplified Typescript SDK, any provider, no boilerplate.
+**When Stripe, Shopify, Clerk or any other platform sends a webhook to your server, how do you know it's real and not a forged request?** Tern checks the signature for you — one simplified TypeScript SDK, any provider, no boilerplate.
 
 [![npm version](https://img.shields.io/npm/v/@hookflo/tern)](https://www.npmjs.com/package/@hookflo/tern)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](https://www.typescriptlang.org/)
@@ -18,7 +17,7 @@ npm install @hookflo/tern
 
 ⭐ Star this repo to help others discover it · 💬 [Join our Discord](https://discord.com/invite/SNmCjU97nr)
 
-<img width="1200" height="630" alt="Tern – Webhook Verification Framework" src="./og-image.png" style="border-radius: 10px; margin-top: 16px;" />
+<img width="1200" height="630" alt="Tern – Webhook Verification Framework" src="https://tern.hookflo.com/og-image.webp" style="border-radius: 10px; margin-top: 16px;" />
 
 **Navigation**
 
