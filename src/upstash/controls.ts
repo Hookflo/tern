@@ -146,6 +146,23 @@ export function createTernControls(config: TernControlsConfig): TernControls {
 
     async alert(options: ControlAlertOptions = {}) {
       let replayMeta: Record<string, unknown> = {};
+      let resolvedSource = options.source;
+      let resolvedEventId = options.eventId;
+
+      if (options.dlq && (!resolvedSource || !resolvedEventId)) {
+        try {
+          const dlqMessages = await this.dlq();
+          const matchingMessage = dlqMessages.find((message) => message.dlqId === options.dlqId);
+
+          resolvedSource = resolvedSource || matchingMessage?.platform;
+          resolvedEventId = resolvedEventId || matchingMessage?.id;
+        } catch (error) {
+          replayMeta = {
+            ...replayMeta,
+            dlqLookupError: (error as Error).message,
+          };
+        }
+      }
 
       if (options.dlq) {
         if (!options.dlqId || options.dlqId.trim() === '') {
@@ -181,9 +198,12 @@ export function createTernControls(config: TernControlsConfig): TernControls {
         },
         {
           ...options,
-          eventId: options.eventId || options.dlqId,
+          source: resolvedSource,
+          eventId: resolvedEventId || options.dlqId,
           metadata: {
             ...(options.metadata || {}),
+            source: resolvedSource || options.metadata?.source,
+            eventId: resolvedEventId || options.metadata?.eventId,
             ...replayMeta,
           },
         },
