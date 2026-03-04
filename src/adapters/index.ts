@@ -16,3 +16,9 @@ export {
 } from './cloudflare';
 
 export { toWebRequest, extractRawBody } from './shared';
+
+export {
+  createWebhookHandler as createHonoWebhookHandler,
+  HonoWebhookHandlerOptions,
+  HonoContextLike,
+} from './hono';

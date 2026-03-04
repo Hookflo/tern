@@ -3,6 +3,7 @@ import { WebhookVerificationService, getPlatformsByCategory } from './index';
 import { normalizeAlertOptions } from './notifications/utils';
 import { buildSlackPayload } from './notifications/channels/slack';
 import { buildDiscordPayload } from './notifications/channels/discord';
+import { createWebhookHandler as createHonoWebhookHandler, HonoContextLike } from './adapters/hono';
 
 const testSecret = 'whsec_test_secret_key_12345';
 const testBody = JSON.stringify({ event: 'test', data: { id: '123' } });
@@ -910,6 +911,85 @@ async function runTests() {
     console.log('   ✅ Alert title/message fallback:', trackCheck('alert title/message fallback', pass) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ Alert title/message fallback test failed:', error);
+  }
+
+
+  // Test 24: Hono adapter verified handler path
+  console.log('\n24. Testing Hono adapter verified handler path...');
+  try {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const stripeSignature = createStripeSignature(testBody, testSecret, timestamp);
+    const request = createMockRequest({
+      'stripe-signature': stripeSignature,
+      'content-type': 'application/json',
+    });
+
+    type TestContext = HonoContextLike & { responseCalls: number };
+    const context: TestContext = {
+      req: { raw: request },
+      responseCalls: 0,
+      json: (payload: unknown, status: number = 200) => {
+        context.responseCalls += 1;
+        return new Response(JSON.stringify(payload), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        });
+      },
+    };
+
+    const webhook = createHonoWebhookHandler<TestContext, Record<string, unknown>, Record<string, unknown>, Response>({
+      platform: 'stripe',
+      secret: testSecret,
+      handler: async (payload, metadata, c) => c.json({
+        received: true,
+        payloadEvent: payload.event,
+        id: metadata.id || null,
+      }),
+    });
+
+    const response = await webhook(context);
+    const body = await response.json() as Record<string, unknown>;
+    const pass = response.status === 200
+      && body.received === true
+      && body.payloadEvent === 'test'
+      && context.responseCalls === 1;
+
+    console.log('   ✅ Hono verified handler:', trackCheck('hono verified handler', pass) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Hono verified handler test failed:', error);
+  }
+
+  // Test 25: Hono adapter invalid signature path
+  console.log('\n25. Testing Hono adapter invalid signature response...');
+  try {
+    const request = createMockRequest({
+      'stripe-signature': 't=1,v1=invalid',
+      'content-type': 'application/json',
+    });
+
+    const context: HonoContextLike = {
+      req: { raw: request },
+      json: (payload: unknown, status: number = 200) => new Response(JSON.stringify(payload), {
+        status,
+        headers: { 'content-type': 'application/json' },
+      }),
+    };
+
+    const webhook = createHonoWebhookHandler({
+      platform: 'stripe',
+      secret: testSecret,
+      handler: async () => ({ shouldNotRun: true }),
+    });
+
+    const response = await webhook(context);
+    const body = await response.json() as Record<string, unknown>;
+    const errorCode = String(body.errorCode || '');
+    const pass = response.status === 400
+      && (errorCode === 'INVALID_SIGNATURE' || errorCode === 'TIMESTAMP_EXPIRED');
+
+    console.log('   ✅ Hono invalid signature:', trackCheck('hono invalid signature', pass, String(body.error || '')) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Hono invalid signature test failed:', error);
   }
 
   if (failedChecks.length > 0) {

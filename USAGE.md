@@ -53,7 +53,7 @@ if (result.isValid) {
 
 ## 🧩 Framework middleware usage for new platforms
 
-All built-in platforms work automatically with framework adapters (`express`, `nextjs`, `cloudflare`) by setting `platform` and `secret`.
+All built-in platforms work automatically with framework adapters (`express`, `nextjs`, `cloudflare`, `hono`) by setting `platform` and `secret`.
 
 ```typescript
 // Next.js - Paddle
@@ -85,6 +85,24 @@ const handleWoo = createWebhookHandler({
   secretEnv: 'WOO_WEBHOOK_SECRET',
   handler: async () => ({ received: true }),
 });
+```
+
+```typescript
+// Hono - Stripe
+import { Hono } from 'hono';
+import { createWebhookHandler } from '@hookflo/tern/hono';
+
+const app = new Hono();
+
+app.post('/webhooks/stripe', createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  handler: async (payload, metadata, c) => c.json({
+    received: true,
+    id: metadata.id,
+    payload,
+  }),
+}));
 ```
 
 ### fal.ai (important)
