@@ -32,7 +32,9 @@
     "typescript",
     "node",
     "express",
-    "nextjs"
+    "nextjs",
+    "cloudflare",
+    "hono"
   ],
   "author": "Prateek Jain",
   "license": "MIT",
@@ -102,6 +104,12 @@
       "require": "./dist/upstash/index.js",
       "import": "./dist/upstash/index.js",
       "default": "./dist/upstash/index.js"
+    },
+    "./hono": {
+      "types": "./dist/hono.d.ts",
+      "require": "./dist/hono.js",
+      "import": "./dist/hono.js",
+      "default": "./dist/hono.js"
     }
   },
   "typesVersions": {
@@ -120,6 +128,9 @@
       ],
       "upstash": [
         "dist/upstash/index.d.ts"
+      ],
+      "hono": [
+        "dist/hono.d.ts"
       ]
     }
   },

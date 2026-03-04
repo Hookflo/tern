@@ -148,7 +148,26 @@ export const onRequestPost = createWebhookHandler({
 });
 ```
 
-> All built-in platforms work across Express, Next.js, and Cloudflare adapters. You only change `platform` and `secret` per route.
+### Hono (Edge Runtimes)
+
+```typescript
+import { Hono } from 'hono';
+import { createWebhookHandler } from '@hookflo/tern/hono';
+
+const app = new Hono();
+
+app.post('/webhooks/stripe', createWebhookHandler({
+  platform: 'stripe',
+  secret: process.env.STRIPE_WEBHOOK_SECRET!,
+  handler: async (payload, metadata, c) => c.json({
+    received: true,
+    eventId: metadata.id,
+    payload,
+  }),
+}));
+```
+
+> All built-in platforms work across Express, Next.js, Cloudflare, and Hono adapters. You only change `platform` and `secret` per route.
 
 ## Supported Platforms
 
@@ -203,7 +222,7 @@ export const POST = createWebhookHandler({
 - **Auto Platform Detection** — detect and verify across multiple providers via `verifyAny` with diagnostics on failure
 - **Algorithm Agnostic** — HMAC-SHA256, HMAC-SHA1, HMAC-SHA512, ED25519, and custom algorithms
 - **Zero Dependencies** — no bloat, no supply chain risk
-- **Framework Agnostic** — works with Express, Next.js, Cloudflare Workers, Deno, and any runtime with Web Crypto
+- **Framework Agnostic** — works with Express, Next.js, Cloudflare Workers, Hono, Deno, Bun, and any runtime with Web Crypto
 - **Body-Parser Safe** — reads raw bodies correctly to prevent signature mismatch
 - **Strong TypeScript** — strict types, full inference, comprehensive type definitions
 - **Stable Error Codes** — `INVALID_SIGNATURE`, `MISSING_SIGNATURE`, `TIMESTAMP_EXPIRED`, and more
