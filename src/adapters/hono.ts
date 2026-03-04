@@ -102,7 +102,11 @@ export function createWebhookHandler<
 
       return c.json(data);
     } catch (error) {
-      options.onError?.(error as Error);
+      if (options.onError) {
+        options.onError(error as Error);
+      } else {
+        console.error('[tern/hono]', error);
+      }
       return c.json({ error: (error as Error).message }, 500);
     }
   };
