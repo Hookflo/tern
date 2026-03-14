@@ -1,6 +1,7 @@
 export type WebhookPlatform =
   | 'custom'
   | 'clerk'
+  | 'svix'
   | 'github'
   | 'stripe'
   | 'shopify'
@@ -19,12 +20,16 @@ export type WebhookPlatform =
   | 'grafana'
   | 'doppler'
   | 'sanity'
+  | 'linear'
+  | 'pagerduty'
+  | 'twilio'
   | 'unknown';
 
 export enum WebhookPlatformKeys {
   GitHub = 'github',
   Stripe = 'stripe',
   Clerk = 'clerk',
+  Svix = 'svix',
   DodoPayments = 'dodopayments',
   Shopify = 'shopify',
   Vercel = 'vercel',
@@ -41,6 +46,9 @@ export enum WebhookPlatformKeys {
   Grafana = 'grafana',
   Doppler = 'doppler',
   Sanity = 'sanity',
+  Linear = 'linear',
+  PagerDuty = 'pagerduty',
+  Twilio = 'twilio',
   Custom = 'custom',
   Unknown = 'unknown'
 }
