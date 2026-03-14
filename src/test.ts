@@ -114,6 +114,32 @@ function createSanitySignature(body: string, secret: string, timestamp: number):
   return `t=${timestamp},v1=${hmac.digest('base64')}`;
 }
 
+function createPagerDutySignature(body: string, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(body);
+  return `v1=${hmac.digest('hex')}`;
+}
+
+function createLinearSignature(body: string, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(body);
+  return hmac.digest('hex');
+}
+
+function createSvixSignature(body: string, secret: string, id: string, timestamp: number): string {
+  const signedContent = `${id}.${timestamp}.${body}`;
+  const secretBytes = new Uint8Array(Buffer.from(secret.split('whsec_')[1], 'base64'));
+  const hmac = createHmac('sha256', secretBytes);
+  hmac.update(signedContent);
+  return `v1,${hmac.digest('base64')}`;
+}
+
+function createTwilioSignature(url: string, authToken: string): string {
+  const hmac = createHmac('sha1', authToken);
+  hmac.update(url);
+  return hmac.digest('base64');
+}
+
 function createFalPayloadToSign(body: string, requestId: string, userId: string, timestamp: string): string {
   const bodyHash = createHash('sha256').update(body).digest('hex');
   return `${requestId}\n${userId}\n${timestamp}\n${bodyHash}`;
@@ -990,6 +1016,105 @@ async function runTests() {
     console.log('   ✅ Hono invalid signature:', trackCheck('hono invalid signature', pass, String(body.error || '')) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ Hono invalid signature test failed:', error);
+  }
+
+  // Test 26: PagerDuty platform verification
+  console.log('\n26. Testing PagerDuty platform verification...');
+  try {
+    const payload = JSON.stringify({ messages: [{ event: 'incident.triggered' }] });
+    const signature = createPagerDutySignature(payload, testSecret);
+    const request = createMockRequest({
+      'x-pagerduty-signature': `${signature},v1=deadbeef`,
+      'content-type': 'application/json',
+    }, payload);
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'pagerduty',
+      testSecret,
+    );
+
+    console.log('   ✅ PagerDuty:', trackCheck('pagerduty platform verifier', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ PagerDuty platform verifier test failed:', error);
+  }
+
+  // Test 27: Linear platform verification with replay protection
+  console.log('\n27. Testing Linear platform verification...');
+  try {
+    const payload = JSON.stringify({
+      action: 'Issue',
+      webhookTimestamp: Date.now(),
+    });
+    const signature = createLinearSignature(payload, testSecret);
+    const request = createMockRequest({
+      'linear-signature': signature,
+      'content-type': 'application/json',
+    }, payload);
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'linear',
+      testSecret,
+    );
+
+    console.log('   ✅ Linear:', trackCheck('linear platform verifier', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Linear platform verifier test failed:', error);
+  }
+
+  // Test 28: Svix platform verification with replay protection
+  console.log('\n28. Testing Svix platform verification...');
+  try {
+    const id = 'msg_2LJC7S5QfRZk9k9bM2QxWjv1l3U';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const payload = JSON.stringify({ type: 'invoice.paid' });
+    const svixSecret = `whsec_${Buffer.from(testSecret).toString('base64')}`;
+    const signature = createSvixSignature(payload, svixSecret, id, timestamp);
+
+    const request = createMockRequest({
+      'svix-id': id,
+      'svix-timestamp': String(timestamp),
+      'svix-signature': `${signature} v1,invalid`,
+      'content-type': 'application/json',
+    }, payload);
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'svix',
+      svixSecret,
+    );
+
+    console.log('   ✅ Svix:', trackCheck('svix platform verifier', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Svix platform verifier test failed:', error);
+  }
+
+  // Test 29: Twilio platform verification (JSON + bodySHA256)
+  console.log('\n29. Testing Twilio platform verification...');
+  try {
+    const payload = JSON.stringify({ callSid: 'CA123', status: 'completed' });
+    const bodySha256 = createHash('sha256').update(payload).digest('hex');
+    const url = `https://example.com/twilio/webhook?bodySHA256=${bodySha256}`;
+    const signature = createTwilioSignature(url, testSecret);
+    const request = new Request(url, {
+      method: 'POST',
+      headers: {
+        'x-twilio-signature': signature,
+        'content-type': 'application/json',
+      },
+      body: payload,
+    });
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'twilio',
+      testSecret,
+    );
+
+    console.log('   ✅ Twilio:', trackCheck('twilio platform verifier', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Twilio platform verifier test failed:', error);
   }
 
   if (failedChecks.length > 0) {
