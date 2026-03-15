@@ -10,6 +10,7 @@ export interface CloudflareWebhookHandlerOptions<TEnv = Record<string, unknown>,
   secret?: string;
   secretEnv?: string;
   toleranceInSeconds?: number;
+  twilioBaseUrl?: string;
   queue?: QueueOption;
   alerts?: AlertConfig;
   alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
@@ -59,11 +60,14 @@ export function createWebhookHandler<TEnv = Record<string, unknown>, TPayload = 
         return response;
       }
 
-      const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      const result = await WebhookVerificationService.verify(
         request,
-        options.platform,
-        secret,
-        options.toleranceInSeconds,
+        {
+          platform: options.platform,
+          secret,
+          toleranceInSeconds: options.toleranceInSeconds,
+          twilioBaseUrl: options.twilioBaseUrl,
+        },
       );
 
       if (!result.isValid) {

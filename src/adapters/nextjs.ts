@@ -9,6 +9,7 @@ export interface NextWebhookHandlerOptions<TPayload = any, TMetadata extends Rec
   platform: WebhookPlatform;
   secret: string;
   toleranceInSeconds?: number;
+  twilioBaseUrl?: string;
   queue?: QueueOption;
   alerts?: AlertConfig;
   alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
@@ -51,11 +52,14 @@ export function createWebhookHandler<TPayload = any, TMetadata extends Record<st
         return response;
       }
 
-      const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      const result = await WebhookVerificationService.verify(
         request,
-        options.platform,
-        options.secret,
-        options.toleranceInSeconds,
+        {
+          platform: options.platform,
+          secret: options.secret,
+          toleranceInSeconds: options.toleranceInSeconds,
+          twilioBaseUrl: options.twilioBaseUrl,
+        },
       );
 
       if (!result.isValid) {
