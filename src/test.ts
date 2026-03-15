@@ -1,5 +1,5 @@
 import { createHmac, createHash, generateKeyPairSync, sign } from 'crypto';
-import { WebhookVerificationService, getPlatformsByCategory } from './index';
+import { WebhookVerificationService } from './index';
 import { normalizeAlertOptions } from './notifications/utils';
 import { buildSlackPayload } from './notifications/channels/slack';
 import { buildDiscordPayload } from './notifications/channels/discord';
@@ -590,61 +590,6 @@ async function runTests() {
     console.log('   ✅ verifyAny diagnostics:', hasDetailedErrors ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ verifyAny diagnostics test failed:', error);
-  }
-
-  // Test 11: Normalization for Stripe
-  console.log('\n11. Testing payload normalization...');
-  try {
-    const normalizedStripeBody = JSON.stringify({
-      type: 'payment_intent.succeeded',
-      data: {
-        object: {
-          id: 'pi_123',
-          amount: 5000,
-          currency: 'usd',
-          customer: 'cus_456',
-        },
-      },
-    });
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const stripeSignature = createStripeSignature(normalizedStripeBody, testSecret, timestamp);
-
-    const request = createMockRequest(
-      {
-        'stripe-signature': stripeSignature,
-        'content-type': 'application/json',
-      },
-      normalizedStripeBody,
-    );
-
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(
-      request,
-      'stripe',
-      testSecret,
-      300,
-      true,
-    );
-
-    const payload = result.payload as Record<string, any>;
-    const passed = result.isValid
-      && payload.event === 'payment.succeeded'
-      && payload.currency === 'USD'
-      && payload.transaction_id === 'pi_123';
-
-    console.log('   ✅ Normalization:', passed ? 'PASSED' : 'FAILED');
-  } catch (error) {
-    console.log('   ❌ Normalization test failed:', error);
-  }
-
-  // Test 12: Category-aware normalization registry
-  console.log('\n12. Testing category-based platform registry...');
-  try {
-    const paymentPlatforms = getPlatformsByCategory('payment');
-    const hasStripeAndPolar = paymentPlatforms.includes('stripe') && paymentPlatforms.includes('polar');
-    console.log('   ✅ Category registry:', hasStripeAndPolar ? 'PASSED' : 'FAILED');
-  } catch (error) {
-    console.log('   ❌ Category registry test failed:', error);
   }
 
   // Test 13: Razorpay

@@ -5,7 +5,6 @@ import {
   WebhookPlatform,
   SignatureConfig,
   MultiPlatformSecrets,
-  NormalizeOptions,
   WebhookErrorCode,
 } from './types';
 import { createAlgorithmVerifier } from './verifiers/algorithms';
@@ -16,7 +15,6 @@ import {
   platformUsesAlgorithm,
   validateSignatureConfig,
 } from './platforms/algorithms';
-import { normalizePayload } from './normalization/simple';
 import type { QueueOption } from './upstash/types';
 import type { AlertConfig, SendAlertOptions } from './notifications/types';
 import { dispatchWebhookAlert } from './notifications/dispatch';
@@ -38,9 +36,6 @@ export class WebhookVerificationService {
         result.payload as Record<string, any>,
       ) ?? undefined;
 
-      if (config.normalize) {
-        result.payload = normalizePayload(config.platform, result.payload, config.normalize);
-      }
     }
 
     return result as WebhookVerificationResult<TPayload>;
@@ -98,16 +93,14 @@ export class WebhookVerificationService {
     request: Request,
     platform: WebhookPlatform,
     secret: string,
-    toleranceInSeconds: number = 300,
-    normalize: boolean | NormalizeOptions = false,
+    toleranceInSeconds: number = 300
   ): Promise<WebhookVerificationResult<TPayload>> {
     const platformConfig = getPlatformAlgorithmConfig(platform);
     const config: WebhookConfig = {
       platform,
       secret,
       toleranceInSeconds,
-      signatureConfig: platformConfig.signatureConfig,
-      normalize,
+      signatureConfig: platformConfig.signatureConfig
     };
 
     return this.verify<TPayload>(request, config);
@@ -116,8 +109,7 @@ export class WebhookVerificationService {
   static async verifyAny<TPayload = unknown>(
     request: Request,
     secrets: MultiPlatformSecrets,
-    toleranceInSeconds: number = 300,
-    normalize: boolean | NormalizeOptions = false,
+    toleranceInSeconds: number = 300
   ): Promise<WebhookVerificationResult<TPayload>> {
     const requestClone = request.clone();
 
@@ -127,8 +119,7 @@ export class WebhookVerificationService {
         requestClone,
         detectedPlatform,
         secrets[detectedPlatform] as string,
-        toleranceInSeconds,
-        normalize,
+        toleranceInSeconds
       );
     }
 
@@ -147,8 +138,7 @@ export class WebhookVerificationService {
             requestClone,
             normalizedPlatform,
             secret as string,
-            toleranceInSeconds,
-            normalize,
+            toleranceInSeconds
           );
 
           return {
@@ -463,11 +453,6 @@ export {
 } from './platforms/algorithms';
 export { createAlgorithmVerifier } from './verifiers/algorithms';
 export { createCustomVerifier } from './verifiers/custom-algorithms';
-export {
-  normalizePayload,
-  getPlatformNormalizationCategory,
-  getPlatformsByCategory,
-} from './normalization/simple';
 export * from './adapters';
 export * from './alerts';
 

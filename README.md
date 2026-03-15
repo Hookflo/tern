@@ -79,6 +79,27 @@ const result = await WebhookVerificationService.verifyAny(request, {
 console.log(`Verified ${result.platform} webhook`);
 ```
 
+### Twilio example
+
+```typescript
+import { WebhookVerificationService } from '@hookflo/tern';
+
+export async function POST(request: Request) {
+  const result = await WebhookVerificationService.verify(request, {
+    platform: 'twilio',
+    secret: process.env.TWILIO_AUTH_TOKEN!,
+    // Optional when behind proxies/CDNs if request.url differs from the public Twilio URL:
+    twilioBaseUrl: 'https://yourdomain.com/api/webhooks/twilio',
+  });
+
+  if (!result.isValid) {
+    return Response.json({ error: result.error }, { status: 400 });
+  }
+
+  return Response.json({ ok: true });
+}
+```
+
 ### Core SDK (runtime-agnostic)
 
 Use Tern without framework adapters in any runtime that supports the Web `Request` API.
@@ -170,6 +191,9 @@ app.post('/webhooks/stripe', createWebhookHandler({
 > All built-in platforms work across Express, Next.js, Cloudflare, and Hono adapters. You only change `platform` and `secret` per route.
 
 ## Supported Platforms
+
+> ⚠️ Normalization is no longer supported in Tern and has been removed from the public verification APIs.
+
 
 | Platform | Algorithm | Status |
 |---|---|---|

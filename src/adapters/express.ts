@@ -1,7 +1,6 @@
 import {
   WebhookPlatform,
   WebhookVerificationResult,
-  NormalizeOptions,
 } from '../types';
 import { WebhookVerificationService } from '../index';
 import { handleQueuedRequest, resolveQueueConfig } from '../upstash/queue';
@@ -25,7 +24,6 @@ export interface ExpressWebhookMiddlewareOptions {
   platform: WebhookPlatform;
   secret: string;
   toleranceInSeconds?: number;
-  normalize?: boolean | NormalizeOptions;
   queue?: QueueOption;
   alerts?: AlertConfig;
   alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
@@ -93,7 +91,6 @@ export function createWebhookMiddleware(
         options.platform,
         options.secret,
         options.toleranceInSeconds,
-        options.normalize,
       );
 
       if (!result.isValid) {
