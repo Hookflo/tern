@@ -189,6 +189,10 @@ app.post('/webhooks/stripe', createWebhookHandler({
 | **Grafana** | HMAC-SHA256 | ✅ Tested |
 | **Doppler** | HMAC-SHA256 | ✅ Tested |
 | **Sanity** | HMAC-SHA256 | ✅ Tested |
+| **Svix** | HMAC-SHA256 | ⚠️ Untested for now |
+| **Linear** | HMAC-SHA256 | ⚠️ Untested for now |
+| **PagerDuty** | HMAC-SHA256 | ⚠️ Untested for now |
+| **Twilio** | HMAC-SHA1 | ⚠️ Untested for now |
 | **Razorpay** | HMAC-SHA256 | 🔄 Pending |
 | **Vercel** | HMAC-SHA256 | 🔄 Pending |
 
@@ -402,6 +406,9 @@ interface WebhookVerificationResult {
 ```
 
 ## Troubleshooting
+
+- **Twilio invalid signature behind proxies/CDNs**: if your runtime `request.url` differs from the public Twilio webhook URL, pass `twilioBaseUrl` in `WebhookVerificationService.verify(...)` for platform `twilio`.
+
 
 **`Module not found: Can't resolve "@hookflo/tern/nextjs"`**
 

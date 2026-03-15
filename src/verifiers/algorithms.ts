@@ -92,9 +92,33 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
             // Accept "v1=<signature>" variants used by some providers/docs.
             if (sig.startsWith("v1=")) {
-              const [, value] = sig.split("=", 2);
-              if (value) {
-                normalized.push(value.trim());
+              if (this.config.customConfig?.comparePrefixed) {
+                for (const fragment of sig.split(',')) {
+                  const candidate = fragment.trim();
+                  if (candidate.startsWith('v1=')) {
+                    normalized.push(candidate);
+                  }
+                }
+              } else {
+                const [, value] = sig.split("=", 2);
+                if (value) {
+                  normalized.push(value.trim());
+                }
+              }
+              continue;
+            }
+
+            for (const fragment of sig.split(',')) {
+              const candidate = fragment.trim();
+              if (candidate.startsWith('v1=')) {
+                if (this.config.customConfig?.comparePrefixed) {
+                  normalized.push(candidate);
+                } else {
+                  const [, value] = candidate.split('=', 2);
+                  if (value) {
+                    normalized.push(value.trim());
+                  }
+                }
               }
             }
           }
@@ -108,7 +132,9 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   protected extractTimestamp(request: Request): number | null {
     if (!this.config.timestampHeader) return null;
 
-    const timestampHeader = request.headers.get(this.config.timestampHeader);
+    const timestampHeader = request.headers.get(this.config.timestampHeader)
+      || this.config.customConfig?.timestampHeaderAliases?.map((alias: string) => request.headers.get(alias)).find(Boolean)
+      || null;
     if (!timestampHeader) return null;
 
     switch (this.config.timestampFormat) {
@@ -142,7 +168,7 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
     // These platforms have timestampHeader in config but timestamp
     // is optional in their spec — validate only if present, never mandate
-    const optionalTimestampPlatforms = ['vercel', 'sentry', 'grafana'];
+    const optionalTimestampPlatforms = ['vercel', 'sentry', 'grafana', 'twilio'];
     if (optionalTimestampPlatforms.includes(this.platform as string)) return false;
 
     // For all other platforms: infer from config
@@ -159,6 +185,19 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     ) return true;
 
     return false;
+  }
+
+  protected resolveTwilioSignatureUrl(request: Request): string {
+    const overrideBaseUrl = this.config.customConfig?.twilioBaseUrl as string | undefined;
+    if (!overrideBaseUrl) {
+      return request.url;
+    }
+
+    const requestUrl = new URL(request.url);
+    const baseUrl = new URL(overrideBaseUrl);
+    baseUrl.search = requestUrl.search;
+
+    return baseUrl.toString();
   }
 
   protected formatPayload(rawBody: string, request: Request): string {
@@ -193,7 +232,7 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     if (customFormat.includes("{id}") && customFormat.includes("{timestamp}")) {
       const id = request.headers.get(
         this.config.customConfig.idHeader || "x-webhook-id",
-      );
+      ) || this.config.customConfig?.idHeaderAliases?.map((alias: string) => request.headers.get(alias)).find(Boolean);
       const timestamp = request.headers.get(
         this.config.timestampHeader ||
           this.config.customConfig?.timestampHeader ||
@@ -217,6 +256,12 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
         .replace("{id}", id.trim() || "")
         .replace("{timestamp}", timestamp.trim() || "")
         .replace("{body}", rawBody);
+    }
+
+    if (customFormat.includes('{url}')) {
+      return customFormat
+        .replace('{url}', this.platform === 'twilio' ? this.resolveTwilioSignatureUrl(request) : request.url)
+        .replace('{body}', rawBody);
     }
 
     if (
@@ -336,6 +381,46 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 }
 
 export class GenericHMACVerifier extends AlgorithmBasedVerifier {
+  private validateLinearReplayWindow(rawBody: string): string | null {
+    if (this.platform !== 'linear') return null;
+
+    try {
+      const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+      const rawTimestamp = parsed.webhookTimestamp;
+      const timestampMs = Number(rawTimestamp);
+
+      if (!Number.isFinite(timestampMs)) {
+        return 'Missing or invalid Linear webhookTimestamp';
+      }
+
+      const replayToleranceMs = this.config.customConfig?.replayToleranceMs || 60_000;
+      if (Math.abs(Date.now() - timestampMs) > replayToleranceMs) {
+        return 'Linear webhook timestamp is outside the replay window';
+      }
+    } catch {
+      return 'Linear webhook replay check requires JSON payload';
+    }
+
+    return null;
+  }
+
+  private validateTwilioBodyHash(rawBody: string, request: Request): string | null {
+    if (this.platform !== 'twilio' || !this.config.customConfig?.validateBodySHA256) {
+      return null;
+    }
+
+    const url = new URL(this.resolveTwilioSignatureUrl(request));
+    const bodySha = url.searchParams.get('bodySHA256');
+    if (!bodySha) return null;
+
+    const computed = createHash('sha256').update(rawBody).digest('hex');
+    if (!this.safeCompare(computed, bodySha)) {
+      return 'Twilio bodySHA256 query param does not match payload hash';
+    }
+
+    return null;
+  }
+
   private resolveSentryPayloadCandidates(
     rawBody: string,
     request: Request,
@@ -385,6 +470,26 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
 
       const rawBody = await request.text();
 
+      const linearReplayError = this.validateLinearReplayWindow(rawBody);
+      if (linearReplayError) {
+        return {
+          isValid: false,
+          error: linearReplayError,
+          errorCode: 'TIMESTAMP_EXPIRED',
+          platform: this.platform,
+        };
+      }
+
+      const twilioBodyHashError = this.validateTwilioBodyHash(rawBody, request);
+      if (twilioBodyHashError) {
+        return {
+          isValid: false,
+          error: twilioBodyHashError,
+          errorCode: 'INVALID_SIGNATURE',
+          platform: this.platform,
+        };
+      }
+
       let timestamp: number | null = null;
       if (this.config.headerFormat === "comma-separated") {
         timestamp = this.extractTimestampFromSignature(request);
@@ -422,7 +527,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         for (const signature of signatures) {
           if (this.config.customConfig?.encoding === "base64") {
             isValid = this.verifyHMACWithBase64(payload, signature, algorithm);
-          } else if (this.config.headerFormat === "prefixed") {
+          } else if (this.config.headerFormat === "prefixed" || this.config.customConfig?.comparePrefixed) {
             isValid = this.verifyHMACWithPrefix(payload, signature, algorithm);
           } else {
             isValid = this.verifyHMAC(payload, signature, algorithm);

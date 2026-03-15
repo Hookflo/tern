@@ -56,6 +56,28 @@ export const platformAlgorithmConfigs: Record<
     description: "Clerk webhooks use HMAC-SHA256 with base64 encoding",
   },
 
+  svix: {
+    platform: 'svix',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'svix-signature',
+      headerFormat: 'raw',
+      timestampHeader: 'svix-timestamp',
+      timestampFormat: 'unix',
+      payloadFormat: 'custom',
+      customConfig: {
+        signatureFormat: 'v1={signature}',
+        payloadFormat: '{id}.{timestamp}.{body}',
+        encoding: 'base64',
+        secretEncoding: 'base64',
+        idHeader: 'svix-id',
+        idHeaderAliases: ['webhook-id'],
+        timestampHeaderAliases: ['webhook-timestamp'],
+      },
+    },
+    description: 'Svix webhooks use HMAC-SHA256 with Standard Webhooks format',
+  },
+
   dodopayments: {
     platform: "dodopayments",
     signatureConfig: {
@@ -320,6 +342,53 @@ export const platformAlgorithmConfigs: Record<
     },
     description:
       "Sanity webhooks use Stripe-compatible HMAC-SHA256 with base64 encoded signature and plain UTF-8 secret",
+  },
+
+  linear: {
+    platform: 'linear',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'linear-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
+      customConfig: {
+        replayToleranceMs: 60_000,
+      },
+    },
+    description: 'Linear webhooks use HMAC-SHA256 on the raw body with a 60s timestamp replay window',
+  },
+
+  pagerduty: {
+    platform: 'pagerduty',
+    signatureConfig: {
+      algorithm: 'hmac-sha256',
+      headerName: 'x-pagerduty-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'raw',
+      prefix: 'v1=',
+      customConfig: {
+        signatureFormat: 'v1={signature}',
+        comparePrefixed: true,
+      },
+    },
+    description: 'PagerDuty webhooks use HMAC-SHA256 with v1=<hex> signatures',
+  },
+
+  twilio: {
+    platform: 'twilio',
+    signatureConfig: {
+      algorithm: 'hmac-sha1',
+      headerName: 'x-twilio-signature',
+      headerFormat: 'raw',
+      payloadFormat: 'custom',
+      customConfig: {
+        payloadFormat: '{url}',
+        encoding: 'base64',
+        secretEncoding: 'utf8',
+        validateBodySHA256: true,
+      },
+    },
+    description: 'Twilio webhooks use HMAC-SHA1 with base64 signatures (URL canonicalization required)',
   },
 
   custom: {
