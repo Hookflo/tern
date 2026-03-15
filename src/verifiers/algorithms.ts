@@ -36,6 +36,46 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
   abstract verify(request: Request): Promise<WebhookVerificationResult>;
 
+  protected getMissingSignatureMessage(): string {
+    return `Missing signature header: ${this.config.headerName}. Ensure your webhook provider sends this header and your adapter forwards it unchanged.`;
+  }
+
+  protected getMissingTimestampMessage(): string {
+    const timestampHeader = this.config.timestampHeader || this.config.customConfig?.timestampHeader || 'timestamp';
+    return `Missing required timestamp for webhook verification. Verify header '${timestampHeader}' is present and passed through by your framework/proxy.`;
+  }
+
+  protected getTimestampExpiredMessage(): string {
+    return 'Webhook timestamp expired. Check server clock drift and increase tolerance only if your provider allows it.';
+  }
+
+  protected getInvalidSignatureMessage(): string {
+    const genericHint = `Invalid signature for ${this.platform}. Confirm webhook secret, raw request body handling, and signature header formatting.`;
+
+    switch (this.platform) {
+      case 'twilio':
+        return `${genericHint} Twilio also requires the exact public URL used for signing (including query params like bodySHA256). Use twilioBaseUrl if your runtime URL is rewritten behind a proxy.`;
+      case 'stripe':
+        return `${genericHint} Stripe signatures require the exact raw body and Stripe-Signature timestamp/value pair.`;
+      case 'github':
+        return `${genericHint} GitHub signatures must include the sha256= prefix from x-hub-signature-256.`;
+      case 'svix':
+      case 'clerk':
+      case 'dodopayments':
+      case 'replicateai':
+      case 'polar':
+        return `${genericHint} Standard Webhooks payload must be signed as id.timestamp.body and secrets may need whsec_ base64 decoding.`;
+      case 'pagerduty':
+        return `${genericHint} PagerDuty expects v1=<hex> signature values from x-pagerduty-signature.`;
+      default:
+        return genericHint;
+    }
+  }
+
+  protected getVerificationErrorMessage(error: Error): string {
+    return `${this.platform} verification error: ${error.message}. Check webhook secret configuration and ensure your framework preserves raw body + headers.`;
+  }
+
   protected parseDelimitedHeader(headerValue: string): Record<string, string> {
     const parts = headerValue.split(/[;,]/);
     const values: Record<string, string> = {};
@@ -462,7 +502,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       if (signatures.length === 0) {
         return {
           isValid: false,
-          error: `Missing signature header: ${this.config.headerName}`,
+          error: this.getMissingSignatureMessage(),
           errorCode: "MISSING_SIGNATURE",
           platform: this.platform,
         };
@@ -500,7 +540,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       if (this.requiresTimestamp() && !timestamp) {
         return {
           isValid: false,
-          error: 'Missing required timestamp for webhook verification',
+          error: this.getMissingTimestampMessage(),
           errorCode: 'MISSING_SIGNATURE',
           platform: this.platform,
         };
@@ -509,7 +549,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       if (timestamp && !this.isTimestampValid(timestamp)) {
         return {
           isValid: false,
-          error: "Webhook timestamp expired",
+          error: this.getTimestampExpiredMessage(),
           errorCode: "TIMESTAMP_EXPIRED",
           platform: this.platform,
         };
@@ -546,7 +586,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       if (!isValid) {
         return {
           isValid: false,
-          error: "Invalid signature",
+          error: this.getInvalidSignatureMessage(),
           errorCode: "INVALID_SIGNATURE",
           platform: this.platform,
         };
@@ -577,9 +617,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
     } catch (error) {
       return {
         isValid: false,
-        error: `${this.platform} verification error: ${
-          (error as Error).message
-        }`,
+        error: this.getVerificationErrorMessage(error as Error),
         errorCode: "VERIFICATION_ERROR",
         platform: this.platform,
       };
@@ -713,7 +751,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
       if (signatures.length === 0) {
         return {
           isValid: false,
-          error: `Missing signature header: ${this.config.headerName}`,
+          error: this.getMissingSignatureMessage(),
           errorCode: "MISSING_SIGNATURE",
           platform: this.platform,
         };
@@ -730,7 +768,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
         if (!timestampStr) {
           return {
             isValid: false,
-            error: 'Missing required timestamp for webhook verification',
+            error: this.getMissingTimestampMessage(),
             errorCode: 'MISSING_SIGNATURE',
             platform: this.platform,
           };
@@ -740,7 +778,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
         if (!this.isTimestampValid(timestamp)) {
           return {
             isValid: false,
-            error: "Webhook timestamp expired",
+            error: this.getTimestampExpiredMessage(),
             errorCode: "TIMESTAMP_EXPIRED",
             platform: this.platform,
           };
@@ -814,7 +852,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
       if (!isValid) {
         return {
           isValid: false,
-          error: "Invalid signature",
+          error: this.getInvalidSignatureMessage(),
           errorCode: "INVALID_SIGNATURE",
           platform: this.platform,
         };
@@ -850,9 +888,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
     } catch (error) {
       return {
         isValid: false,
-        error: `${this.platform} verification error: ${
-          (error as Error).message
-        }`,
+        error: this.getVerificationErrorMessage(error as Error),
         errorCode: "VERIFICATION_ERROR",
         platform: this.platform,
       };
