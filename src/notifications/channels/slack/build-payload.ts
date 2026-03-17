@@ -24,9 +24,9 @@ export function buildSlackPayload(input: AlertPayloadBuilderInput) {
     isDLQ ? { type: "mrkdwn", text: "*Queue*\ndlq" } : null,
     input.eventId
       ? {
-          type: "mrkdwn",
-          text: `*${isDLQ ? "DLQ ID" : "Event ID"}*\n\`${input.eventId}\``,
-        }
+        type: "mrkdwn",
+        text: `*${isDLQ ? "DLQ ID" : "Event ID"}*\n\`${input.eventId}\``,
+      }
       : null,
   ].filter(Boolean);
 
