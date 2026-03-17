@@ -8,12 +8,22 @@ import { resolveDestinations, normalizeAlertOptions } from './utils';
 import { buildSlackPayload } from './channels/slack';
 import { buildDiscordPayload } from './channels/discord';
 
+// Fallback for Node < 18 environments
+const globalFetch = typeof fetch !== 'undefined'
+  ? fetch // Use native fetch if available
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  : (async (...args: any[]) => {
+    // eslint-disable-next-line import/no-unresolved, @typescript-eslint/no-explicit-any
+    const nodeFetch = (await import('node-fetch')).default as any;
+    return nodeFetch(...args);
+  }) as unknown as typeof fetch;
+
 async function postWebhook(
   webhookUrl: string,
   body: unknown,
 ): Promise<{ ok: boolean; status?: number; error?: string }> {
   try {
-    const response = await fetch(webhookUrl, {
+    const response = await globalFetch(webhookUrl, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
