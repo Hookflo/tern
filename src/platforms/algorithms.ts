@@ -4,6 +4,41 @@ import {
   SignatureConfig,
 } from "../types";
 
+export const STANDARD_WEBHOOKS_BASE = {
+  algorithm: "hmac-sha256" as const,
+  headerFormat: "raw" as const,
+  timestampFormat: "unix" as const,
+  payloadFormat: "custom" as const,
+  customConfig: {
+    signatureFormat: "v1={signature}",
+    payloadFormat: "{id}.{timestamp}.{body}",
+    encoding: "base64",
+    secretEncoding: "base64",
+  },
+};
+
+export function createStandardWebhooksConfig(headers: {
+  id: string;
+  timestamp: string;
+  signature: string;
+  idAliases?: string[];
+  timestampAliases?: string[];
+  signatureAliases?: string[];
+}): SignatureConfig {
+  return {
+    ...STANDARD_WEBHOOKS_BASE,
+    headerName: headers.signature,
+    timestampHeader: headers.timestamp,
+    customConfig: {
+      ...STANDARD_WEBHOOKS_BASE.customConfig,
+      idHeader: headers.id,
+      ...(headers.idAliases && { idHeaderAliases: headers.idAliases }),
+      ...(headers.timestampAliases && { timestampHeaderAliases: headers.timestampAliases }),
+      ...(headers.signatureAliases && { signatureHeaderAliases: headers.signatureAliases }),
+    },
+  };
+}
+
 export const platformAlgorithmConfigs: Record<
   WebhookPlatform,
   PlatformAlgorithmConfig
@@ -358,37 +393,19 @@ export const platformAlgorithmConfigs: Record<
     description: 'Linear webhooks use HMAC-SHA256 on the raw body with a 60s timestamp replay window',
   },
 
-  pagerduty: {
-    platform: 'pagerduty',
+  standardwebhooks: {
+    platform: 'standardwebhooks',
     signatureConfig: {
-      algorithm: 'hmac-sha256',
-      headerName: 'x-pagerduty-signature',
-      headerFormat: 'raw',
-      payloadFormat: 'raw',
-      prefix: 'v1=',
-      customConfig: {
-        signatureFormat: 'v1={signature}',
-        comparePrefixed: true,
-      },
+      ...createStandardWebhooksConfig({
+        id: 'webhook-id',
+        timestamp: 'webhook-timestamp',
+        signature: 'webhook-signature',
+        idAliases: ['svix-id'],
+        timestampAliases: ['svix-timestamp'],
+        signatureAliases: ['svix-signature'],
+      }),
     },
-    description: 'PagerDuty webhooks use HMAC-SHA256 with v1=<hex> signatures',
-  },
-
-  twilio: {
-    platform: 'twilio',
-    signatureConfig: {
-      algorithm: 'hmac-sha1',
-      headerName: 'x-twilio-signature',
-      headerFormat: 'raw',
-      payloadFormat: 'custom',
-      customConfig: {
-        payloadFormat: '{url}',
-        encoding: 'base64',
-        secretEncoding: 'utf8',
-        validateBodySHA256: true,
-      },
-    },
-    description: 'Twilio webhooks use HMAC-SHA1 with base64 signatures (URL canonicalization required)',
+    description: 'Canonical Standard Webhooks implementation. Works for any platform using v1= HMAC-SHA256 signing regardless of header names.',
   },
 
   custom: {

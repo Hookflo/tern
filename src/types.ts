@@ -21,8 +21,7 @@ export type WebhookPlatform =
   | 'doppler'
   | 'sanity'
   | 'linear'
-  | 'pagerduty'
-  | 'twilio'
+  | 'standardwebhooks'
   | 'unknown';
 
 export enum WebhookPlatformKeys {
@@ -47,8 +46,7 @@ export enum WebhookPlatformKeys {
   Doppler = 'doppler',
   Sanity = 'sanity',
   Linear = 'linear',
-  PagerDuty = 'pagerduty',
-  Twilio = 'twilio',
+  StandardWebhooks = 'standardwebhooks',
   Custom = 'custom',
   Unknown = 'unknown'
 }
@@ -104,8 +102,6 @@ export interface WebhookConfig {
   toleranceInSeconds?: number;
   // New fields for algorithm-based verification
   signatureConfig?: SignatureConfig;
-  // Optional override for Twilio signature URL construction (useful behind proxies/CDNs)
-  twilioBaseUrl?: string;
 }
 
 export interface MultiPlatformSecrets {

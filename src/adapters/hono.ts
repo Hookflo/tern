@@ -21,7 +21,6 @@ export interface HonoWebhookHandlerOptions<
   platform: WebhookPlatform;
   secret: string;
   toleranceInSeconds?: number;
-  twilioBaseUrl?: string;
   queue?: QueueOption;
   alerts?: AlertConfig;
   alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
@@ -77,7 +76,6 @@ export function createWebhookHandler<
           platform: options.platform,
           secret: options.secret,
           toleranceInSeconds: options.toleranceInSeconds,
-          twilioBaseUrl: options.twilioBaseUrl,
         },
       );
 

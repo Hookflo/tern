@@ -10,7 +10,6 @@ export interface CloudflareWebhookHandlerOptions<TEnv = Record<string, unknown>,
   secret?: string;
   secretEnv?: string;
   toleranceInSeconds?: number;
-  twilioBaseUrl?: string;
   queue?: QueueOption;
   alerts?: AlertConfig;
   alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
@@ -66,7 +65,6 @@ export function createWebhookHandler<TEnv = Record<string, unknown>, TPayload = 
           platform: options.platform,
           secret,
           toleranceInSeconds: options.toleranceInSeconds,
-          twilioBaseUrl: options.twilioBaseUrl,
         },
       );
 

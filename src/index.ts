@@ -62,9 +62,6 @@ export class WebhookVerificationService {
       ...signatureConfig,
       customConfig: {
         ...(signatureConfig.customConfig || {}),
-        ...(config.platform === 'twilio' && config.twilioBaseUrl
-          ? { twilioBaseUrl: config.twilioBaseUrl }
-          : {}),
       },
     };
 
@@ -247,9 +244,8 @@ export class WebhookVerificationService {
       case 'sentry':
       case 'vercel':
       case 'linear':
-      case 'pagerduty':
-      case 'twilio':
       case 'svix':
+      case 'standardwebhooks':
         return this.pickString(payload?.id) || null;
       case 'doppler':
         return this.pickString(payload?.event?.id, metadata?.id) || null;
@@ -293,8 +289,6 @@ export class WebhookVerificationService {
     if (headers.has('x-hub-signature-256')) return 'github';
     if (headers.has('svix-signature')) return headers.has('svix-id') ? 'svix' : 'clerk';
     if (headers.has('linear-signature')) return 'linear';
-    if (headers.has('x-pagerduty-signature')) return 'pagerduty';
-    if (headers.has('x-twilio-signature')) return 'twilio';
     if (headers.has('workos-signature')) return 'workos';
     if (headers.has('webhook-signature')) {
       const userAgent = headers.get('user-agent')?.toLowerCase() || '';
@@ -450,6 +444,8 @@ export {
   platformUsesAlgorithm,
   getPlatformsUsingAlgorithm,
   validateSignatureConfig,
+  STANDARD_WEBHOOKS_BASE,
+  createStandardWebhooksConfig,
 } from './platforms/algorithms';
 export { createAlgorithmVerifier } from './verifiers/algorithms';
 export { createCustomVerifier } from './verifiers/custom-algorithms';
