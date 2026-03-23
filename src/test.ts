@@ -1,5 +1,6 @@
 import { createHmac, createHash, generateKeyPairSync, sign } from 'crypto';
 import { WebhookVerificationService } from './index';
+import { platformAlgorithmConfigs } from './platforms/algorithms';
 import { normalizeAlertOptions } from './notifications/utils';
 import { buildSlackPayload } from './notifications/channels/slack';
 import { buildDiscordPayload } from './notifications/channels/discord';
@@ -114,30 +115,10 @@ function createSanitySignature(body: string, secret: string, timestamp: number):
   return `t=${timestamp},v1=${hmac.digest('base64')}`;
 }
 
-function createPagerDutySignature(body: string, secret: string): string {
-  const hmac = createHmac('sha256', secret);
-  hmac.update(body);
-  return `v1=${hmac.digest('hex')}`;
-}
-
 function createLinearSignature(body: string, secret: string): string {
   const hmac = createHmac('sha256', secret);
   hmac.update(body);
   return hmac.digest('hex');
-}
-
-function createSvixSignature(body: string, secret: string, id: string, timestamp: number): string {
-  const signedContent = `${id}.${timestamp}.${body}`;
-  const secretBytes = new Uint8Array(Buffer.from(secret.split('whsec_')[1], 'base64'));
-  const hmac = createHmac('sha256', secretBytes);
-  hmac.update(signedContent);
-  return `v1,${hmac.digest('base64')}`;
-}
-
-function createTwilioSignature(url: string, authToken: string): string {
-  const hmac = createHmac('sha1', authToken);
-  hmac.update(url);
-  return hmac.digest('base64');
 }
 
 function createFalPayloadToSign(body: string, requestId: string, userId: string, timestamp: string): string {
@@ -963,25 +944,30 @@ async function runTests() {
     console.log('   ❌ Hono invalid signature test failed:', error);
   }
 
-  // Test 26: PagerDuty platform verification
-  console.log('\n26. Testing PagerDuty platform verification...');
+  // Test 26: Standard Webhooks canonical platform with webhook-* headers
+  console.log('\n26. Testing standardwebhooks with webhook-* headers...');
   try {
-    const payload = JSON.stringify({ messages: [{ event: 'incident.triggered' }] });
-    const signature = createPagerDutySignature(payload, testSecret);
+    const payload = JSON.stringify({ type: 'invoice.paid' });
+    const id = 'msg_standard_001';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const standardSecret = `whsec_${Buffer.from(testSecret).toString('base64')}`;
+    const signature = createStandardWebhooksSignature(payload, standardSecret, id, timestamp);
     const request = createMockRequest({
-      'x-pagerduty-signature': `${signature},v1=deadbeef`,
+      'webhook-id': id,
+      'webhook-timestamp': String(timestamp),
+      'webhook-signature': `${signature} v1,invalid`,
       'content-type': 'application/json',
     }, payload);
 
     const result = await WebhookVerificationService.verifyWithPlatformConfig(
       request,
-      'pagerduty',
-      testSecret,
+      'standardwebhooks',
+      standardSecret,
     );
 
-    console.log('   ✅ PagerDuty:', trackCheck('pagerduty platform verifier', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+    console.log('   ✅ standardwebhooks (webhook-*):', trackCheck('standardwebhooks webhook headers', result.isValid, result.error) ? 'PASSED' : 'FAILED');
   } catch (error) {
-    console.log('   ❌ PagerDuty platform verifier test failed:', error);
+    console.log('   ❌ standardwebhooks webhook-* test failed:', error);
   }
 
   // Test 27: Linear platform verification with replay protection
@@ -1008,14 +994,14 @@ async function runTests() {
     console.log('   ❌ Linear platform verifier test failed:', error);
   }
 
-  // Test 28: Svix platform verification with replay protection
-  console.log('\n28. Testing Svix platform verification...');
+  // Test 28: Standard Webhooks canonical platform with svix-* aliases
+  console.log('\n28. Testing standardwebhooks with svix-* aliases...');
   try {
     const id = 'msg_2LJC7S5QfRZk9k9bM2QxWjv1l3U';
     const timestamp = Math.floor(Date.now() / 1000);
     const payload = JSON.stringify({ type: 'invoice.paid' });
     const svixSecret = `whsec_${Buffer.from(testSecret).toString('base64')}`;
-    const signature = createSvixSignature(payload, svixSecret, id, timestamp);
+    const signature = createStandardWebhooksSignature(payload, svixSecret, id, timestamp);
 
     const request = createMockRequest({
       'svix-id': id,
@@ -1026,80 +1012,29 @@ async function runTests() {
 
     const result = await WebhookVerificationService.verifyWithPlatformConfig(
       request,
-      'svix',
+      'standardwebhooks',
       svixSecret,
     );
 
-    console.log('   ✅ Svix:', trackCheck('svix platform verifier', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+    console.log('   ✅ standardwebhooks (svix-* aliases):', trackCheck('standardwebhooks svix aliases', result.isValid, result.error) ? 'PASSED' : 'FAILED');
   } catch (error) {
-    console.log('   ❌ Svix platform verifier test failed:', error);
+    console.log('   ❌ standardwebhooks svix aliases test failed:', error);
   }
 
-
-  // Test 29.5: Twilio verification with twilioBaseUrl override
-  console.log('\n29.5. Testing Twilio verification with twilioBaseUrl override...');
+  // Test 29: standardwebhooks factory output matches dodopayments shape modulo aliases
+  console.log('\n29. Testing standardwebhooks structure parity with dodopayments...');
   try {
-    const payload = JSON.stringify({ messageSid: 'SM123', status: 'delivered' });
-    const bodySha256 = createHash('sha256').update(payload).digest('hex');
-    const publicUrl = `https://prateekjn.me/api/webhooks/stripe?bodySHA256=${bodySha256}`;
-    const internalUrl = `http://127.0.0.1:3000/internal/webhook?bodySHA256=${bodySha256}`;
-    const signature = createTwilioSignature(publicUrl, testSecret);
-
-    const request = new Request(internalUrl, {
-      method: 'POST',
-      headers: {
-        'x-twilio-signature': signature,
-        'content-type': 'application/json',
-      },
-      body: payload,
-    });
-
-    const withoutOverride = await WebhookVerificationService.verifyWithPlatformConfig(
-      request.clone(),
-      'twilio',
-      testSecret,
-    );
-
-    const withOverride = await WebhookVerificationService.verify(
-      request,
-      {
-        platform: 'twilio',
-        secret: testSecret,
-        twilioBaseUrl: 'https://prateekjn.me/api/webhooks/stripe',
-      },
-    );
-
-    const pass = !withoutOverride.isValid && withOverride.isValid;
-    console.log('   ✅ Twilio base URL override:', trackCheck('twilio base url override', pass, withOverride.error || withoutOverride.error) ? 'PASSED' : 'FAILED');
+    const {
+      idHeaderAliases,
+      timestampHeaderAliases,
+      signatureHeaderAliases,
+      ...standardCustomBase
+    } = platformAlgorithmConfigs.standardwebhooks.signatureConfig.customConfig || {};
+    const dodoCustomConfig = platformAlgorithmConfigs.dodopayments.signatureConfig.customConfig || {};
+    const pass = JSON.stringify(standardCustomBase) === JSON.stringify(dodoCustomConfig);
+    console.log('   ✅ standardwebhooks shape parity:', trackCheck('standardwebhooks shape parity', pass) ? 'PASSED' : 'FAILED');
   } catch (error) {
-    console.log('   ❌ Twilio base URL override test failed:', error);
-  }
-
-  // Test 29: Twilio platform verification (JSON + bodySHA256)
-  console.log('\n29. Testing Twilio platform verification...');
-  try {
-    const payload = JSON.stringify({ callSid: 'CA123', status: 'completed' });
-    const bodySha256 = createHash('sha256').update(payload).digest('hex');
-    const url = `https://example.com/twilio/webhook?bodySHA256=${bodySha256}`;
-    const signature = createTwilioSignature(url, testSecret);
-    const request = new Request(url, {
-      method: 'POST',
-      headers: {
-        'x-twilio-signature': signature,
-        'content-type': 'application/json',
-      },
-      body: payload,
-    });
-
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(
-      request,
-      'twilio',
-      testSecret,
-    );
-
-    console.log('   ✅ Twilio:', trackCheck('twilio platform verifier', result.isValid, result.error) ? 'PASSED' : 'FAILED');
-  } catch (error) {
-    console.log('   ❌ Twilio platform verifier test failed:', error);
+    console.log('   ❌ standardwebhooks shape parity test failed:', error);
   }
 
   if (failedChecks.length > 0) {
