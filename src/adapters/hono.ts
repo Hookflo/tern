@@ -1,4 +1,4 @@
-import { WebhookPlatform, NormalizeOptions } from '../types';
+import { WebhookPlatform } from '../types';
 import { WebhookVerificationService } from '../index';
 import { handleQueuedRequest, resolveQueueConfig } from '../upstash/queue';
 import { QueueOption } from '../upstash/types';
@@ -21,7 +21,6 @@ export interface HonoWebhookHandlerOptions<
   platform: WebhookPlatform;
   secret: string;
   toleranceInSeconds?: number;
-  normalize?: boolean | NormalizeOptions;
   queue?: QueueOption;
   alerts?: AlertConfig;
   alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
@@ -71,12 +70,13 @@ export function createWebhookHandler<
         return response;
       }
 
-      const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      const result = await WebhookVerificationService.verify(
         request,
-        options.platform,
-        options.secret,
-        options.toleranceInSeconds,
-        options.normalize,
+        {
+          platform: options.platform,
+          secret: options.secret,
+          toleranceInSeconds: options.toleranceInSeconds,
+        },
       );
 
       if (!result.isValid) {

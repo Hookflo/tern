@@ -36,6 +36,43 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
   abstract verify(request: Request): Promise<WebhookVerificationResult>;
 
+  protected getMissingSignatureMessage(): string {
+    return `Missing signature header: ${this.config.headerName}. Ensure your webhook provider sends this header and your adapter forwards it unchanged.`;
+  }
+
+  protected getMissingTimestampMessage(): string {
+    const timestampHeader = this.config.timestampHeader || this.config.customConfig?.timestampHeader || 'timestamp';
+    return `Missing required timestamp for webhook verification. Verify header '${timestampHeader}' is present and passed through by your framework/proxy.`;
+  }
+
+  protected getTimestampExpiredMessage(): string {
+    return 'Webhook timestamp expired. Check server clock drift and increase tolerance only if your provider allows it.';
+  }
+
+  protected getInvalidSignatureMessage(): string {
+    const genericHint = `Invalid signature for ${this.platform}. Confirm webhook secret, raw request body handling, and signature header formatting.`;
+
+    switch (this.platform) {
+      case 'stripe':
+        return `${genericHint} Stripe signatures require the exact raw body and Stripe-Signature timestamp/value pair.`;
+      case 'github':
+        return `${genericHint} GitHub signatures must include the sha256= prefix from x-hub-signature-256.`;
+      case 'svix':
+      case 'standardwebhooks':
+      case 'clerk':
+      case 'dodopayments':
+      case 'replicateai':
+      case 'polar':
+        return `${genericHint} Standard Webhooks payload must be signed as id.timestamp.body and secrets may need whsec_ base64 decoding.`;
+      default:
+        return genericHint;
+    }
+  }
+
+  protected getVerificationErrorMessage(error: Error): string {
+    return `${this.platform} verification error: ${error.message}. Check webhook secret configuration and ensure your framework preserves raw body + headers.`;
+  }
+
   protected parseDelimitedHeader(headerValue: string): Record<string, string> {
     const parts = headerValue.split(/[;,]/);
     const values: Record<string, string> = {};
@@ -57,7 +94,9 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   }
 
   protected extractSignatures(request: Request): string[] {
-    const headerValue = request.headers.get(this.config.headerName);
+    const headerValue: string | null = request.headers.get(this.config.headerName)
+      || this.config.customConfig?.signatureHeaderAliases?.map((alias: string) => request.headers.get(alias)).find(Boolean)
+      || null;
     if (!headerValue) return [];
 
     switch (this.config.headerFormat) {
@@ -92,9 +131,33 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 
             // Accept "v1=<signature>" variants used by some providers/docs.
             if (sig.startsWith("v1=")) {
-              const [, value] = sig.split("=", 2);
-              if (value) {
-                normalized.push(value.trim());
+              if (this.config.customConfig?.comparePrefixed) {
+                for (const fragment of sig.split(',')) {
+                  const candidate = fragment.trim();
+                  if (candidate.startsWith('v1=')) {
+                    normalized.push(candidate);
+                  }
+                }
+              } else {
+                const [, value] = sig.split("=", 2);
+                if (value) {
+                  normalized.push(value.trim());
+                }
+              }
+              continue;
+            }
+
+            for (const fragment of sig.split(',')) {
+              const candidate = fragment.trim();
+              if (candidate.startsWith('v1=')) {
+                if (this.config.customConfig?.comparePrefixed) {
+                  normalized.push(candidate);
+                } else {
+                  const [, value] = candidate.split('=', 2);
+                  if (value) {
+                    normalized.push(value.trim());
+                  }
+                }
               }
             }
           }
@@ -108,7 +171,9 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
   protected extractTimestamp(request: Request): number | null {
     if (!this.config.timestampHeader) return null;
 
-    const timestampHeader = request.headers.get(this.config.timestampHeader);
+    const timestampHeader = request.headers.get(this.config.timestampHeader)
+      || this.config.customConfig?.timestampHeaderAliases?.map((alias: string) => request.headers.get(alias)).find(Boolean)
+      || null;
     if (!timestampHeader) return null;
 
     switch (this.config.timestampFormat) {
@@ -193,12 +258,12 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
     if (customFormat.includes("{id}") && customFormat.includes("{timestamp}")) {
       const id = request.headers.get(
         this.config.customConfig.idHeader || "x-webhook-id",
-      );
+      ) || this.config.customConfig?.idHeaderAliases?.map((alias: string) => request.headers.get(alias)).find(Boolean);
       const timestamp = request.headers.get(
         this.config.timestampHeader ||
           this.config.customConfig?.timestampHeader ||
           "x-webhook-timestamp",
-      );
+      ) || this.config.customConfig?.timestampHeaderAliases?.map((alias: string) => request.headers.get(alias)).find(Boolean);
 
       // if either is missing payload will be malformed — fail explicitly
       if (!id || !timestamp) {
@@ -217,6 +282,12 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
         .replace("{id}", id.trim() || "")
         .replace("{timestamp}", timestamp.trim() || "")
         .replace("{body}", rawBody);
+    }
+
+    if (customFormat.includes('{url}')) {
+      return customFormat
+        .replace('{url}', request.url)
+        .replace('{body}', rawBody);
     }
 
     if (
@@ -336,6 +407,29 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
 }
 
 export class GenericHMACVerifier extends AlgorithmBasedVerifier {
+  private validateLinearReplayWindow(rawBody: string): string | null {
+    if (this.platform !== 'linear') return null;
+
+    try {
+      const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+      const rawTimestamp = parsed.webhookTimestamp;
+      const timestampMs = Number(rawTimestamp);
+
+      if (!Number.isFinite(timestampMs)) {
+        return 'Missing or invalid Linear webhookTimestamp';
+      }
+
+      const replayToleranceMs = this.config.customConfig?.replayToleranceMs || 60_000;
+      if (Math.abs(Date.now() - timestampMs) > replayToleranceMs) {
+        return 'Linear webhook timestamp is outside the replay window';
+      }
+    } catch {
+      return 'Linear webhook replay check requires JSON payload';
+    }
+
+    return null;
+  }
+
   private resolveSentryPayloadCandidates(
     rawBody: string,
     request: Request,
@@ -377,13 +471,23 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       if (signatures.length === 0) {
         return {
           isValid: false,
-          error: `Missing signature header: ${this.config.headerName}`,
+          error: this.getMissingSignatureMessage(),
           errorCode: "MISSING_SIGNATURE",
           platform: this.platform,
         };
       }
 
       const rawBody = await request.text();
+
+      const linearReplayError = this.validateLinearReplayWindow(rawBody);
+      if (linearReplayError) {
+        return {
+          isValid: false,
+          error: linearReplayError,
+          errorCode: 'TIMESTAMP_EXPIRED',
+          platform: this.platform,
+        };
+      }
 
       let timestamp: number | null = null;
       if (this.config.headerFormat === "comma-separated") {
@@ -395,7 +499,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       if (this.requiresTimestamp() && !timestamp) {
         return {
           isValid: false,
-          error: 'Missing required timestamp for webhook verification',
+          error: this.getMissingTimestampMessage(),
           errorCode: 'MISSING_SIGNATURE',
           platform: this.platform,
         };
@@ -404,7 +508,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       if (timestamp && !this.isTimestampValid(timestamp)) {
         return {
           isValid: false,
-          error: "Webhook timestamp expired",
+          error: this.getTimestampExpiredMessage(),
           errorCode: "TIMESTAMP_EXPIRED",
           platform: this.platform,
         };
@@ -422,7 +526,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
         for (const signature of signatures) {
           if (this.config.customConfig?.encoding === "base64") {
             isValid = this.verifyHMACWithBase64(payload, signature, algorithm);
-          } else if (this.config.headerFormat === "prefixed") {
+          } else if (this.config.headerFormat === "prefixed" || this.config.customConfig?.comparePrefixed) {
             isValid = this.verifyHMACWithPrefix(payload, signature, algorithm);
           } else {
             isValid = this.verifyHMAC(payload, signature, algorithm);
@@ -441,7 +545,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
       if (!isValid) {
         return {
           isValid: false,
-          error: "Invalid signature",
+          error: this.getInvalidSignatureMessage(),
           errorCode: "INVALID_SIGNATURE",
           platform: this.platform,
         };
@@ -472,9 +576,7 @@ export class GenericHMACVerifier extends AlgorithmBasedVerifier {
     } catch (error) {
       return {
         isValid: false,
-        error: `${this.platform} verification error: ${
-          (error as Error).message
-        }`,
+        error: this.getVerificationErrorMessage(error as Error),
         errorCode: "VERIFICATION_ERROR",
         platform: this.platform,
       };
@@ -608,7 +710,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
       if (signatures.length === 0) {
         return {
           isValid: false,
-          error: `Missing signature header: ${this.config.headerName}`,
+          error: this.getMissingSignatureMessage(),
           errorCode: "MISSING_SIGNATURE",
           platform: this.platform,
         };
@@ -625,7 +727,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
         if (!timestampStr) {
           return {
             isValid: false,
-            error: 'Missing required timestamp for webhook verification',
+            error: this.getMissingTimestampMessage(),
             errorCode: 'MISSING_SIGNATURE',
             platform: this.platform,
           };
@@ -635,7 +737,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
         if (!this.isTimestampValid(timestamp)) {
           return {
             isValid: false,
-            error: "Webhook timestamp expired",
+            error: this.getTimestampExpiredMessage(),
             errorCode: "TIMESTAMP_EXPIRED",
             platform: this.platform,
           };
@@ -709,7 +811,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
       if (!isValid) {
         return {
           isValid: false,
-          error: "Invalid signature",
+          error: this.getInvalidSignatureMessage(),
           errorCode: "INVALID_SIGNATURE",
           platform: this.platform,
         };
@@ -745,9 +847,7 @@ export class Ed25519Verifier extends AlgorithmBasedVerifier {
     } catch (error) {
       return {
         isValid: false,
-        error: `${this.platform} verification error: ${
-          (error as Error).message
-        }`,
+        error: this.getVerificationErrorMessage(error as Error),
         errorCode: "VERIFICATION_ERROR",
         platform: this.platform,
       };

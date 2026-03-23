@@ -1,4 +1,4 @@
-import { WebhookPlatform, NormalizeOptions } from '../types';
+import { WebhookPlatform } from '../types';
 import { WebhookVerificationService } from '../index';
 import { handleQueuedRequest, resolveQueueConfig } from '../upstash/queue';
 import { QueueOption } from '../upstash/types';
@@ -10,7 +10,6 @@ export interface CloudflareWebhookHandlerOptions<TEnv = Record<string, unknown>,
   secret?: string;
   secretEnv?: string;
   toleranceInSeconds?: number;
-  normalize?: boolean | NormalizeOptions;
   queue?: QueueOption;
   alerts?: AlertConfig;
   alert?: Omit<SendAlertOptions, 'dlq' | 'dlqId' | 'source' | 'eventId'>;
@@ -60,12 +59,13 @@ export function createWebhookHandler<TEnv = Record<string, unknown>, TPayload = 
         return response;
       }
 
-      const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      const result = await WebhookVerificationService.verify(
         request,
-        options.platform,
-        secret,
-        options.toleranceInSeconds,
-        options.normalize,
+        {
+          platform: options.platform,
+          secret,
+          toleranceInSeconds: options.toleranceInSeconds,
+        },
       );
 
       if (!result.isValid) {

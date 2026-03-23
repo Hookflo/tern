@@ -5,7 +5,6 @@ import {
   WebhookPlatform,
   SignatureConfig,
   MultiPlatformSecrets,
-  NormalizeOptions,
   WebhookErrorCode,
 } from './types';
 import { createAlgorithmVerifier } from './verifiers/algorithms';
@@ -16,7 +15,6 @@ import {
   platformUsesAlgorithm,
   validateSignatureConfig,
 } from './platforms/algorithms';
-import { normalizePayload } from './normalization/simple';
 import type { QueueOption } from './upstash/types';
 import type { AlertConfig, SendAlertOptions } from './notifications/types';
 import { dispatchWebhookAlert } from './notifications/dispatch';
@@ -38,9 +36,6 @@ export class WebhookVerificationService {
         result.payload as Record<string, any>,
       ) ?? undefined;
 
-      if (config.normalize) {
-        result.payload = normalizePayload(config.platform, result.payload, config.normalize);
-      }
     }
 
     return result as WebhookVerificationResult<TPayload>;
@@ -63,13 +58,20 @@ export class WebhookVerificationService {
       throw new Error('Signature config is required for algorithm-based verification');
     }
 
+    const effectiveSignatureConfig: SignatureConfig = {
+      ...signatureConfig,
+      customConfig: {
+        ...(signatureConfig.customConfig || {}),
+      },
+    };
+
     // Use custom verifiers for special cases (token-based, etc.)
-    if (signatureConfig.algorithm === 'custom') {
-      return createCustomVerifier(secret, signatureConfig, toleranceInSeconds);
+    if (effectiveSignatureConfig.algorithm === 'custom') {
+      return createCustomVerifier(secret, effectiveSignatureConfig, toleranceInSeconds);
     }
 
     // Use algorithm-based verifiers for standard algorithms
-    return createAlgorithmVerifier(secret, signatureConfig, config.platform, toleranceInSeconds);
+    return createAlgorithmVerifier(secret, effectiveSignatureConfig, config.platform, toleranceInSeconds);
   }
 
   private static getLegacyVerifier(config: WebhookConfig) {
@@ -88,16 +90,14 @@ export class WebhookVerificationService {
     request: Request,
     platform: WebhookPlatform,
     secret: string,
-    toleranceInSeconds: number = 300,
-    normalize: boolean | NormalizeOptions = false,
+    toleranceInSeconds: number = 300
   ): Promise<WebhookVerificationResult<TPayload>> {
     const platformConfig = getPlatformAlgorithmConfig(platform);
     const config: WebhookConfig = {
       platform,
       secret,
       toleranceInSeconds,
-      signatureConfig: platformConfig.signatureConfig,
-      normalize,
+      signatureConfig: platformConfig.signatureConfig
     };
 
     return this.verify<TPayload>(request, config);
@@ -106,8 +106,7 @@ export class WebhookVerificationService {
   static async verifyAny<TPayload = unknown>(
     request: Request,
     secrets: MultiPlatformSecrets,
-    toleranceInSeconds: number = 300,
-    normalize: boolean | NormalizeOptions = false,
+    toleranceInSeconds: number = 300
   ): Promise<WebhookVerificationResult<TPayload>> {
     const requestClone = request.clone();
 
@@ -117,8 +116,7 @@ export class WebhookVerificationService {
         requestClone,
         detectedPlatform,
         secrets[detectedPlatform] as string,
-        toleranceInSeconds,
-        normalize,
+        toleranceInSeconds
       );
     }
 
@@ -137,8 +135,7 @@ export class WebhookVerificationService {
             requestClone,
             normalizedPlatform,
             secret as string,
-            toleranceInSeconds,
-            normalize,
+            toleranceInSeconds
           );
 
           return {
@@ -246,6 +243,9 @@ export class WebhookVerificationService {
       case 'workos':
       case 'sentry':
       case 'vercel':
+      case 'linear':
+      case 'svix':
+      case 'standardwebhooks':
         return this.pickString(payload?.id) || null;
       case 'doppler':
         return this.pickString(payload?.event?.id, metadata?.id) || null;
@@ -287,7 +287,8 @@ export class WebhookVerificationService {
 
     if (headers.has('stripe-signature')) return 'stripe';
     if (headers.has('x-hub-signature-256')) return 'github';
-    if (headers.has('svix-signature')) return 'clerk';
+    if (headers.has('svix-signature')) return headers.has('svix-id') ? 'svix' : 'clerk';
+    if (headers.has('linear-signature')) return 'linear';
     if (headers.has('workos-signature')) return 'workos';
     if (headers.has('webhook-signature')) {
       const userAgent = headers.get('user-agent')?.toLowerCase() || '';
@@ -443,14 +444,11 @@ export {
   platformUsesAlgorithm,
   getPlatformsUsingAlgorithm,
   validateSignatureConfig,
+  STANDARD_WEBHOOKS_BASE,
+  createStandardWebhooksConfig,
 } from './platforms/algorithms';
 export { createAlgorithmVerifier } from './verifiers/algorithms';
 export { createCustomVerifier } from './verifiers/custom-algorithms';
-export {
-  normalizePayload,
-  getPlatformNormalizationCategory,
-  getPlatformsByCategory,
-} from './normalization/simple';
 export * from './adapters';
 export * from './alerts';
 

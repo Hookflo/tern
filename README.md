@@ -7,7 +7,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 
-Stop writing webhook verification from scratch. **Tern** handles signature verification for Stripe, GitHub, Clerk, Shopify, and 15+ more platforms — with one consistent API.
+Stop writing webhook verification from scratch. **Tern** handles signature verification for Stripe, GitHub, Clerk, Shopify, and 15+ more platforms — with one consistent API. It also verifies **Standard Webhooks** (including Svix-style `svix-*` and canonical `webhook-*` headers) through a single `standardwebhooks` platform config.
 
 > Need reliable delivery too? Tern supports inbound webhook delivery via Upstash QStash — automatic retries, DLQ management, replay controls, and Slack/Discord alerting. Bring your own Upstash account (BYOK).
 
@@ -171,6 +171,9 @@ app.post('/webhooks/stripe', createWebhookHandler({
 
 ## Supported Platforms
 
+> ⚠️ Normalization is no longer supported in Tern and has been removed from the public verification APIs.
+
+
 | Platform | Algorithm | Status |
 |---|---|---|
 | **Stripe** | HMAC-SHA256 | ✅ Tested |
@@ -189,6 +192,9 @@ app.post('/webhooks/stripe', createWebhookHandler({
 | **Grafana** | HMAC-SHA256 | ✅ Tested |
 | **Doppler** | HMAC-SHA256 | ✅ Tested |
 | **Sanity** | HMAC-SHA256 | ✅ Tested |
+| **Svix** | HMAC-SHA256 | ⚠️ Untested for now |
+| **Standard Webhooks** (`standardwebhooks`) | HMAC-SHA256 | ✅ Tested |
+| **Linear** | HMAC-SHA256 | ⚠️ Untested for now |
 | **Razorpay** | HMAC-SHA256 | 🔄 Pending |
 | **Vercel** | HMAC-SHA256 | 🔄 Pending |
 
@@ -196,7 +202,7 @@ app.post('/webhooks/stripe', createWebhookHandler({
 
 ### Platform signature notes
 
-- **Standard Webhooks style** platforms (Clerk, Dodo Payments, Polar, ReplicateAI) commonly use a secret that starts with `whsec_...`.
+- **Standard Webhooks style** providers are supported via the canonical `standardwebhooks` platform (with aliases for both `webhook-*` and `svix-*` headers). Clerk, Dodo Payments, Polar, and ReplicateAI all follow this pattern and commonly use a secret that starts with `whsec_...`.
 - **ReplicateAI**: copy the webhook signing secret from your Replicate webhook settings and pass it directly as `secret`.
 - **fal.ai**: supports JWKS key resolution out of the box — use `secret: ''` for auto key resolution, or pass a PEM public key explicitly.
 
@@ -337,25 +343,31 @@ const result = await WebhookVerificationService.verify(request, {
 });
 ```
 
-### Svix / Standard Webhooks format (Clerk, Dodo Payments, ReplicateAI, etc.)
+### Standard Webhooks config helpers (Svix-style and webhook-* headers)
 
 ```typescript
-const svixConfig = {
-  platform: 'my-svix-platform',
-  secret: 'whsec_abc123...',
+import {
+  createStandardWebhooksConfig,
+  STANDARD_WEBHOOKS_BASE,
+} from '@hookflo/tern';
+
+const signatureConfig = createStandardWebhooksConfig({
+  id: 'webhook-id',
+  timestamp: 'webhook-timestamp',
+  signature: 'webhook-signature',
+  idAliases: ['svix-id'],
+  timestampAliases: ['svix-timestamp'],
+  signatureAliases: ['svix-signature'],
+});
+
+const result = await WebhookVerificationService.verify(request, {
+  platform: 'standardwebhooks',
+  secret: process.env.STANDARD_WEBHOOKS_SECRET!,
   signatureConfig: {
-    algorithm: 'hmac-sha256',
-    headerName: 'webhook-signature',
-    headerFormat: 'raw',
-    timestampHeader: 'webhook-timestamp',
-    timestampFormat: 'unix',
-    payloadFormat: 'custom',
-    customConfig: {
-      payloadFormat: '{id}.{timestamp}.{body}',
-      idHeader: 'webhook-id',
-    },
+    ...STANDARD_WEBHOOKS_BASE,
+    ...signatureConfig,
   },
-};
+});
 ```
 
 See the [SignatureConfig type](https://tern.hookflo.com) for all options.
@@ -402,6 +414,7 @@ interface WebhookVerificationResult {
 ```
 
 ## Troubleshooting
+
 
 **`Module not found: Can't resolve "@hookflo/tern/nextjs"`**
 

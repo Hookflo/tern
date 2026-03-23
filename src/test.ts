@@ -1,5 +1,6 @@
 import { createHmac, createHash, generateKeyPairSync, sign } from 'crypto';
-import { WebhookVerificationService, getPlatformsByCategory } from './index';
+import { WebhookVerificationService } from './index';
+import { platformAlgorithmConfigs } from './platforms/algorithms';
 import { normalizeAlertOptions } from './notifications/utils';
 import { buildSlackPayload } from './notifications/channels/slack';
 import { buildDiscordPayload } from './notifications/channels/discord';
@@ -112,6 +113,12 @@ function createSanitySignature(body: string, secret: string, timestamp: number):
   const hmac = createHmac('sha256', secret);
   hmac.update(`${timestamp}.${body}`);
   return `t=${timestamp},v1=${hmac.digest('base64')}`;
+}
+
+function createLinearSignature(body: string, secret: string): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(body);
+  return hmac.digest('hex');
 }
 
 function createFalPayloadToSign(body: string, requestId: string, userId: string, timestamp: string): string {
@@ -566,61 +573,6 @@ async function runTests() {
     console.log('   ❌ verifyAny diagnostics test failed:', error);
   }
 
-  // Test 11: Normalization for Stripe
-  console.log('\n11. Testing payload normalization...');
-  try {
-    const normalizedStripeBody = JSON.stringify({
-      type: 'payment_intent.succeeded',
-      data: {
-        object: {
-          id: 'pi_123',
-          amount: 5000,
-          currency: 'usd',
-          customer: 'cus_456',
-        },
-      },
-    });
-
-    const timestamp = Math.floor(Date.now() / 1000);
-    const stripeSignature = createStripeSignature(normalizedStripeBody, testSecret, timestamp);
-
-    const request = createMockRequest(
-      {
-        'stripe-signature': stripeSignature,
-        'content-type': 'application/json',
-      },
-      normalizedStripeBody,
-    );
-
-    const result = await WebhookVerificationService.verifyWithPlatformConfig(
-      request,
-      'stripe',
-      testSecret,
-      300,
-      true,
-    );
-
-    const payload = result.payload as Record<string, any>;
-    const passed = result.isValid
-      && payload.event === 'payment.succeeded'
-      && payload.currency === 'USD'
-      && payload.transaction_id === 'pi_123';
-
-    console.log('   ✅ Normalization:', passed ? 'PASSED' : 'FAILED');
-  } catch (error) {
-    console.log('   ❌ Normalization test failed:', error);
-  }
-
-  // Test 12: Category-aware normalization registry
-  console.log('\n12. Testing category-based platform registry...');
-  try {
-    const paymentPlatforms = getPlatformsByCategory('payment');
-    const hasStripeAndPolar = paymentPlatforms.includes('stripe') && paymentPlatforms.includes('polar');
-    console.log('   ✅ Category registry:', hasStripeAndPolar ? 'PASSED' : 'FAILED');
-  } catch (error) {
-    console.log('   ❌ Category registry test failed:', error);
-  }
-
   // Test 13: Razorpay
   console.log('\n13. Testing Razorpay webhook...');
   try {
@@ -990,6 +942,99 @@ async function runTests() {
     console.log('   ✅ Hono invalid signature:', trackCheck('hono invalid signature', pass, String(body.error || '')) ? 'PASSED' : 'FAILED');
   } catch (error) {
     console.log('   ❌ Hono invalid signature test failed:', error);
+  }
+
+  // Test 26: Standard Webhooks canonical platform with webhook-* headers
+  console.log('\n26. Testing standardwebhooks with webhook-* headers...');
+  try {
+    const payload = JSON.stringify({ type: 'invoice.paid' });
+    const id = 'msg_standard_001';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const standardSecret = `whsec_${Buffer.from(testSecret).toString('base64')}`;
+    const signature = createStandardWebhooksSignature(payload, standardSecret, id, timestamp);
+    const request = createMockRequest({
+      'webhook-id': id,
+      'webhook-timestamp': String(timestamp),
+      'webhook-signature': `${signature} v1,invalid`,
+      'content-type': 'application/json',
+    }, payload);
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'standardwebhooks',
+      standardSecret,
+    );
+
+    console.log('   ✅ standardwebhooks (webhook-*):', trackCheck('standardwebhooks webhook headers', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ standardwebhooks webhook-* test failed:', error);
+  }
+
+  // Test 27: Linear platform verification with replay protection
+  console.log('\n27. Testing Linear platform verification...');
+  try {
+    const payload = JSON.stringify({
+      action: 'Issue',
+      webhookTimestamp: Date.now(),
+    });
+    const signature = createLinearSignature(payload, testSecret);
+    const request = createMockRequest({
+      'linear-signature': signature,
+      'content-type': 'application/json',
+    }, payload);
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'linear',
+      testSecret,
+    );
+
+    console.log('   ✅ Linear:', trackCheck('linear platform verifier', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Linear platform verifier test failed:', error);
+  }
+
+  // Test 28: Standard Webhooks canonical platform with svix-* aliases
+  console.log('\n28. Testing standardwebhooks with svix-* aliases...');
+  try {
+    const id = 'msg_2LJC7S5QfRZk9k9bM2QxWjv1l3U';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const payload = JSON.stringify({ type: 'invoice.paid' });
+    const svixSecret = `whsec_${Buffer.from(testSecret).toString('base64')}`;
+    const signature = createStandardWebhooksSignature(payload, svixSecret, id, timestamp);
+
+    const request = createMockRequest({
+      'svix-id': id,
+      'svix-timestamp': String(timestamp),
+      'svix-signature': `${signature} v1,invalid`,
+      'content-type': 'application/json',
+    }, payload);
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      request,
+      'standardwebhooks',
+      svixSecret,
+    );
+
+    console.log('   ✅ standardwebhooks (svix-* aliases):', trackCheck('standardwebhooks svix aliases', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ standardwebhooks svix aliases test failed:', error);
+  }
+
+  // Test 29: standardwebhooks factory output matches dodopayments shape modulo aliases
+  console.log('\n29. Testing standardwebhooks structure parity with dodopayments...');
+  try {
+    const {
+      idHeaderAliases,
+      timestampHeaderAliases,
+      signatureHeaderAliases,
+      ...standardCustomBase
+    } = platformAlgorithmConfigs.standardwebhooks.signatureConfig.customConfig || {};
+    const dodoCustomConfig = platformAlgorithmConfigs.dodopayments.signatureConfig.customConfig || {};
+    const pass = JSON.stringify(standardCustomBase) === JSON.stringify(dodoCustomConfig);
+    console.log('   ✅ standardwebhooks shape parity:', trackCheck('standardwebhooks shape parity', pass) ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ standardwebhooks shape parity test failed:', error);
   }
 
   if (failedChecks.length > 0) {

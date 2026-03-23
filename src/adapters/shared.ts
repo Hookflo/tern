@@ -122,8 +122,11 @@ export function toHeadersInit(
 export async function toWebRequest(
   request: MinimalNodeRequest,
 ): Promise<Request> {
-  const protocol = request.protocol || 'https';
-  const host = request.get?.('host')
+  const forwardedProto = getHeaderValue(request.headers, 'x-forwarded-proto')?.split(',')[0]?.trim();
+  const protocol = forwardedProto || request.protocol || 'https';
+  const forwardedHost = getHeaderValue(request.headers, 'x-forwarded-host')?.split(',')[0]?.trim();
+  const host = forwardedHost
+    || request.get?.('host')
     || getHeaderValue(request.headers, 'host')
     || 'localhost';
   const path = request.originalUrl || request.url || '/';
