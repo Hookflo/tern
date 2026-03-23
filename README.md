@@ -192,9 +192,9 @@ app.post('/webhooks/stripe', createWebhookHandler({
 | **Grafana** | HMAC-SHA256 | ✅ Tested |
 | **Doppler** | HMAC-SHA256 | ✅ Tested |
 | **Sanity** | HMAC-SHA256 | ✅ Tested |
-| **Svix** | HMAC-SHA256 | ⚠️ Untested for now |
+| **Svix** | HMAC-SHA256 | ✅ Tested |
 | **Standard Webhooks** (`standardwebhooks`) | HMAC-SHA256 | ✅ Tested |
-| **Linear** | HMAC-SHA256 | ⚠️ Untested for now |
+| **Linear** | HMAC-SHA256 | ✅ Tested |
 | **Razorpay** | HMAC-SHA256 | 🔄 Pending |
 | **Vercel** | HMAC-SHA256 | 🔄 Pending |
 
