@@ -375,7 +375,27 @@ export const platformAlgorithmConfigs: Record<
     description:
       "Linear webhooks use HMAC-SHA256 on the raw body with a 60s timestamp replay window",
   },
-
+  svix: {
+    platform: "svix",
+    signatureConfig: {
+      algorithm: "hmac-sha256",
+      headerName: "svix-signature",
+      headerFormat: "raw",
+      timestampHeader: "svix-timestamp",
+      timestampFormat: "unix",
+      payloadFormat: "custom",
+      customConfig: {
+        signatureFormat: "v1={signature}",
+        payloadFormat: "{id}.{timestamp}.{body}",
+        encoding: "base64",
+        secretEncoding: "base64",
+        idHeader: "svix-id",
+        idHeaderAliases: ["webhook-id"],
+        timestampHeaderAliases: ["webhook-timestamp"],
+      },
+    },
+    description: "Svix webhooks use HMAC-SHA256 with Standard Webhooks format",
+  },
   standardwebhooks: {
     platform: "standardwebhooks",
     signatureConfig: {

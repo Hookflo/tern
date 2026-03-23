@@ -1,85 +1,86 @@
 export type WebhookPlatform =
-  | 'custom'
-  | 'clerk'
-  | 'github'
-  | 'stripe'
-  | 'shopify'
-  | 'vercel'
-  | 'polar'
-  | 'dodopayments'
-  | 'gitlab'
-  | 'paddle'
-  | 'razorpay'
-  | 'lemonsqueezy'
-  | 'workos'
-  | 'woocommerce'
-  | 'replicateai'
-  | 'falai'
-  | 'sentry'
-  | 'grafana'
-  | 'doppler'
-  | 'sanity'
-  | 'linear'
-  | 'standardwebhooks'
-  | 'unknown';
+  | "custom"
+  | "clerk"
+  | "svix"
+  | "github"
+  | "stripe"
+  | "shopify"
+  | "vercel"
+  | "polar"
+  | "dodopayments"
+  | "gitlab"
+  | "paddle"
+  | "razorpay"
+  | "lemonsqueezy"
+  | "workos"
+  | "woocommerce"
+  | "replicateai"
+  | "falai"
+  | "sentry"
+  | "grafana"
+  | "doppler"
+  | "sanity"
+  | "linear"
+  | "standardwebhooks"
+  | "unknown";
 
 export enum WebhookPlatformKeys {
-  GitHub = 'github',
-  Stripe = 'stripe',
-  Clerk = 'clerk',
-  Svix = 'svix',
-  DodoPayments = 'dodopayments',
-  Shopify = 'shopify',
-  Vercel = 'vercel',
-  Polar = 'polar',
-  GitLab = 'gitlab',
-  Paddle = 'paddle',
-  Razorpay = 'razorpay',
-  LemonSqueezy = 'lemonsqueezy',
-  WorkOS = 'workos',
-  WooCommerce = 'woocommerce',
-  ReplicateAI = 'replicateai',
-  FalAI = 'falai',
-  Sentry = 'sentry',
-  Grafana = 'grafana',
-  Doppler = 'doppler',
-  Sanity = 'sanity',
-  Linear = 'linear',
-  StandardWebhooks = 'standardwebhooks',
-  Custom = 'custom',
-  Unknown = 'unknown'
+  GitHub = "github",
+  Stripe = "stripe",
+  Clerk = "clerk",
+  Svix = "svix",
+  DodoPayments = "dodopayments",
+  Shopify = "shopify",
+  Vercel = "vercel",
+  Polar = "polar",
+  GitLab = "gitlab",
+  Paddle = "paddle",
+  Razorpay = "razorpay",
+  LemonSqueezy = "lemonsqueezy",
+  WorkOS = "workos",
+  WooCommerce = "woocommerce",
+  ReplicateAI = "replicateai",
+  FalAI = "falai",
+  Sentry = "sentry",
+  Grafana = "grafana",
+  Doppler = "doppler",
+  Sanity = "sanity",
+  Linear = "linear",
+  StandardWebhooks = "standardwebhooks",
+  Custom = "custom",
+  Unknown = "unknown",
 }
 
 // Algorithm types for the scalable framework
 export type SignatureAlgorithm =
-  | 'hmac-sha256'
-  | 'hmac-sha1'
-  | 'hmac-sha512'
-  | 'rsa-sha256'
-  | 'ed25519'
-  | 'custom';
+  | "hmac-sha256"
+  | "hmac-sha1"
+  | "hmac-sha512"
+  | "rsa-sha256"
+  | "ed25519"
+  | "custom";
 
 export interface SignatureConfig {
   algorithm: SignatureAlgorithm;
   headerName: string;
-  headerFormat?: 'raw' | 'prefixed' | 'comma-separated';
+  headerFormat?: "raw" | "prefixed" | "comma-separated";
   prefix?: string; // e.g., "sha256=" for GitHub
   timestampHeader?: string;
-  timestampFormat?: 'unix' | 'iso' | 'custom';
-  payloadFormat?: 'raw' | 'timestamped' | 'json-stringified' | 'custom';
+  timestampFormat?: "unix" | "iso" | "custom";
+  payloadFormat?: "raw" | "timestamped" | "json-stringified" | "custom";
   idHeader?: string;
   customConfig?: Record<string, any>;
 }
 
 export type WebhookErrorCode =
-  | 'MISSING_SIGNATURE'
-  | 'INVALID_SIGNATURE'
-  | 'TIMESTAMP_EXPIRED'
-  | 'MISSING_TOKEN'
-  | 'INVALID_TOKEN'
-  | 'PLATFORM_NOT_SUPPORTED'
-  | 'NORMALIZATION_ERROR'
-  | 'VERIFICATION_ERROR';
+  | "MISSING_SIGNATURE"
+  | "INVALID_SIGNATURE"
+  | "TIMESTAMP_EXPIRED"
+  | "MISSING_TOKEN"
+  | "INVALID_TOKEN"
+  | "PLATFORM_NOT_SUPPORTED"
+  | "NORMALIZATION_ERROR"
+  | "VERIFICATION_ERROR";
 
 export interface WebhookVerificationResult<TPayload = unknown> {
   isValid: boolean;
