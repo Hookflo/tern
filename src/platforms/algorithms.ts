@@ -33,8 +33,12 @@ export function createStandardWebhooksConfig(headers: {
       ...STANDARD_WEBHOOKS_BASE.customConfig,
       idHeader: headers.id,
       ...(headers.idAliases && { idHeaderAliases: headers.idAliases }),
-      ...(headers.timestampAliases && { timestampHeaderAliases: headers.timestampAliases }),
-      ...(headers.signatureAliases && { signatureHeaderAliases: headers.signatureAliases }),
+      ...(headers.timestampAliases && {
+        timestampHeaderAliases: headers.timestampAliases,
+      }),
+      ...(headers.signatureAliases && {
+        signatureHeaderAliases: headers.signatureAliases,
+      }),
     },
   };
 }
@@ -89,28 +93,6 @@ export const platformAlgorithmConfigs: Record<
       },
     },
     description: "Clerk webhooks use HMAC-SHA256 with base64 encoding",
-  },
-
-  svix: {
-    platform: 'svix',
-    signatureConfig: {
-      algorithm: 'hmac-sha256',
-      headerName: 'svix-signature',
-      headerFormat: 'raw',
-      timestampHeader: 'svix-timestamp',
-      timestampFormat: 'unix',
-      payloadFormat: 'custom',
-      customConfig: {
-        signatureFormat: 'v1={signature}',
-        payloadFormat: '{id}.{timestamp}.{body}',
-        encoding: 'base64',
-        secretEncoding: 'base64',
-        idHeader: 'svix-id',
-        idHeaderAliases: ['webhook-id'],
-        timestampHeaderAliases: ['webhook-timestamp'],
-      },
-    },
-    description: 'Svix webhooks use HMAC-SHA256 with Standard Webhooks format',
   },
 
   dodopayments: {
@@ -380,32 +362,34 @@ export const platformAlgorithmConfigs: Record<
   },
 
   linear: {
-    platform: 'linear',
+    platform: "linear",
     signatureConfig: {
-      algorithm: 'hmac-sha256',
-      headerName: 'linear-signature',
-      headerFormat: 'raw',
-      payloadFormat: 'raw',
+      algorithm: "hmac-sha256",
+      headerName: "linear-signature",
+      headerFormat: "raw",
+      payloadFormat: "raw",
       customConfig: {
         replayToleranceMs: 60_000,
       },
     },
-    description: 'Linear webhooks use HMAC-SHA256 on the raw body with a 60s timestamp replay window',
+    description:
+      "Linear webhooks use HMAC-SHA256 on the raw body with a 60s timestamp replay window",
   },
 
   standardwebhooks: {
-    platform: 'standardwebhooks',
+    platform: "standardwebhooks",
     signatureConfig: {
       ...createStandardWebhooksConfig({
-        id: 'webhook-id',
-        timestamp: 'webhook-timestamp',
-        signature: 'webhook-signature',
-        idAliases: ['svix-id'],
-        timestampAliases: ['svix-timestamp'],
-        signatureAliases: ['svix-signature'],
+        id: "webhook-id",
+        timestamp: "webhook-timestamp",
+        signature: "webhook-signature",
+        idAliases: ["svix-id"],
+        timestampAliases: ["svix-timestamp"],
+        signatureAliases: ["svix-signature"],
       }),
     },
-    description: 'Canonical Standard Webhooks implementation. Works for any platform using v1= HMAC-SHA256 signing regardless of header names.',
+    description:
+      "Canonical Standard Webhooks implementation. Works for any platform using v1= HMAC-SHA256 signing regardless of header names.",
   },
 
   custom: {

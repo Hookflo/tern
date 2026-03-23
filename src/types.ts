@@ -1,7 +1,6 @@
 export type WebhookPlatform =
   | 'custom'
   | 'clerk'
-  | 'svix'
   | 'github'
   | 'stripe'
   | 'shopify'
