@@ -96,3 +96,9 @@ jspm_packages/
 docs
 diffs
 reports
+lint_output.txt
+lint_errors_detail.txt
+lint_errors.txt
+lint_errors2.txt
+lint_errors_clean.txt
+lint_errors_compact.txt

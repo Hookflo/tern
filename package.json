@@ -8,9 +8,9 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "test": "ts-node src/test.ts",
-    "lint": "eslint src/**/*.ts",
-    "lint:fix": "eslint 'src/**/*.ts' --fix",
-    "format": "prettier --write src/**/*.ts",
+    "lint": "eslint \"src/**/*.ts\"",
+    "lint:fix": "eslint \"src/**/*.ts\" --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
     "prepare": "npm run build",
     "release:patch": "npm run build && npm version patch && npm publish",
     "release:minor": "npm run build && npm version minor && npm publish",
@@ -135,6 +135,8 @@
     }
   },
   "dependencies": {
-    "@upstash/qstash": "^2.9.0"
+    "@types/node-fetch": "^2.6.13",
+    "@upstash/qstash": "^2.9.0",
+    "node-fetch": "^2.7.0"
   }
 }

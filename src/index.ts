@@ -250,7 +250,7 @@ export class WebhookVerificationService {
       case 'doppler':
         return this.pickString(payload?.event?.id, metadata?.id) || null;
       case 'sanity':
-        return this.pickString(payload?.transactionId, payload?.['_id']) || null;
+        return this.pickString(payload?.transactionId, payload?._id) || null;
       case 'razorpay':
         return this.pickString(
           payload?.payload?.payment?.entity?.id,
