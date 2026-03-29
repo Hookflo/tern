@@ -2,6 +2,7 @@ export interface MinimalNodeRequest {
   method?: string;
   headers: Record<string, string | string[] | undefined>;
   body?: unknown;
+  rawBody?: unknown;
   protocol?: string;
   get?: (name: string) => string | undefined;
   originalUrl?: string;
@@ -29,6 +30,20 @@ export function hasParsedBody(
     && typeof body === 'object'
     && !(body instanceof Uint8Array)
     && !(body instanceof ArrayBuffer);
+}
+
+function hasRawByteBody(
+  body: unknown,
+): boolean {
+  return body instanceof Uint8Array
+    || body instanceof ArrayBuffer
+    || typeof body === 'string';
+}
+
+export function hasUsableRawBody(
+  request: MinimalNodeRequest,
+): boolean {
+  return hasRawByteBody(request.rawBody) || hasRawByteBody(request.body);
 }
 
 async function readIncomingMessageBodyAsBuffer(
@@ -69,7 +84,7 @@ async function readIncomingMessageBodyAsBuffer(
 export async function extractRawBody(
   request: MinimalNodeRequest,
 ): Promise<Uint8Array> {
-  const { body } = request;
+  const body = request.rawBody ?? request.body;
 
   if (body instanceof Uint8Array) {
     return body;
