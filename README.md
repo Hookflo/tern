@@ -4,7 +4,7 @@
 
 [![npm version](https://img.shields.io/npm/v/@hookflo/tern)](https://www.npmjs.com/package/@hookflo/tern)
 [![TypeScript](https://img.shields.io/badge/TypeScript-Strict-blue)](https://www.typescriptlang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+![npm installs](https://img.shields.io/npm/dt/@hookflo/tern?style=flat-square&logo=npm&label=installs&color=111827)
 [![Zero Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)](package.json)
 
 Stop writing webhook verification from scratch. **Tern** handles signature verification for Stripe, GitHub, Clerk, Shopify, and 15+ more platforms — with one consistent API. It also verifies **Standard Webhooks** (including Svix-style `svix-*` and canonical `webhook-*` headers) through a single `standardwebhooks` platform config.
