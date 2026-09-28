@@ -21,6 +21,7 @@ export type WebhookPlatform =
   | "doppler"
   | "sanity"
   | "linear"
+  | "webflow"
   | "standardwebhooks"
   | "unknown";
 
@@ -46,6 +47,7 @@ export enum WebhookPlatformKeys {
   Doppler = "doppler",
   Sanity = "sanity",
   Linear = "linear",
+  Webflow = "webflow",
   StandardWebhooks = "standardwebhooks",
   Custom = "custom",
   Unknown = "unknown",

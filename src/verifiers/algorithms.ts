@@ -64,6 +64,8 @@ export abstract class AlgorithmBasedVerifier extends WebhookVerifier {
       case 'replicateai':
       case 'polar':
         return `${genericHint} Standard Webhooks payload must be signed as id.timestamp.body and secrets may need whsec_ base64 decoding.`;
+      case 'webflow':
+        return `${genericHint} Webflow signs {x-webflow-timestamp}:{raw body} (hex HMAC-SHA256) using your OAuth app client secret or the webhook's own secret. Webhooks created in the Webflow dashboard are not signed - create them via the API or an OAuth app.`;
       default:
         return genericHint;
     }

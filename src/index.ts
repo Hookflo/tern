@@ -308,6 +308,7 @@ export class WebhookVerificationService {
     if (headers.has('x-doppler-signature')) return 'doppler';
     if (headers.has('sanity-webhook-signature')) return 'sanity';
     if (headers.has('x-shopify-hmac-sha256')) return 'shopify';
+    if (headers.has('x-webflow-signature')) return 'webflow';
     if (headers.has('x-vercel-signature')) return 'vercel';
 
     return 'unknown';
