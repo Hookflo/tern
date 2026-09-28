@@ -71,6 +71,12 @@ function createShopifySignature(body: string, secret: string): string {
   return hmac.digest('base64');
 }
 
+function createWebflowSignature(body: string, secret: string, timestampMs: number): string {
+  const hmac = createHmac('sha256', secret);
+  hmac.update(`${timestampMs}:${body}`);
+  return hmac.digest('hex');
+}
+
 function createWooCommerceSignature(body: string, secret: string): string {
   const hmac = createHmac('sha256', secret);
   hmac.update(body);
@@ -656,6 +662,55 @@ async function runTests() {
     }
   } catch (error) {
     console.log('   ❌ Shopify test failed:', error);
+  }
+
+  // Test 17.6: Webflow
+  console.log('\n17.6. Testing Webflow webhook...');
+  try {
+    const timestampMs = Date.now();
+    const signature = createWebflowSignature(testBody, testSecret, timestampMs);
+    const headers = {
+      'x-webflow-signature': signature,
+      'x-webflow-timestamp': String(timestampMs),
+      'content-type': 'application/json',
+    };
+
+    const result = await WebhookVerificationService.verifyWithPlatformConfig(
+      createMockRequest(headers),
+      'webflow',
+      testSecret,
+    );
+    const detected = WebhookVerificationService.detectPlatform(createMockRequest(headers));
+    console.log('   ✅ Webflow:', trackCheck('Webflow webhook', result.isValid, result.error) ? 'PASSED' : 'FAILED');
+    console.log('   ✅ Webflow auto-detect:', trackCheck('Webflow auto-detect', detected === 'webflow') ? 'PASSED' : 'FAILED');
+
+    const tampered = await WebhookVerificationService.verifyWithPlatformConfig(
+      createMockRequest(headers, testBody + ' '),
+      'webflow',
+      testSecret,
+    );
+    console.log('   ✅ Webflow tampered body rejected:', trackCheck('Webflow tampered body', !tampered.isValid && tampered.errorCode === 'INVALID_SIGNATURE') ? 'PASSED' : 'FAILED');
+
+    const staleMs = Date.now() - 10 * 60 * 1000;
+    const stale = await WebhookVerificationService.verifyWithPlatformConfig(
+      createMockRequest({
+        ...headers,
+        'x-webflow-signature': createWebflowSignature(testBody, testSecret, staleMs),
+        'x-webflow-timestamp': String(staleMs),
+      }),
+      'webflow',
+      testSecret,
+    );
+    console.log('   ✅ Webflow stale timestamp rejected:', trackCheck('Webflow stale timestamp', !stale.isValid && stale.errorCode === 'TIMESTAMP_EXPIRED') ? 'PASSED' : 'FAILED');
+
+    const unsigned = await WebhookVerificationService.verifyWithPlatformConfig(
+      createMockRequest({ 'content-type': 'application/json' }),
+      'webflow',
+      testSecret,
+    );
+    console.log('   ✅ Webflow missing signature rejected:', trackCheck('Webflow missing signature', !unsigned.isValid && unsigned.errorCode === 'MISSING_SIGNATURE') ? 'PASSED' : 'FAILED');
+  } catch (error) {
+    console.log('   ❌ Webflow test failed:', error);
   }
 
   // Test 18: WooCommerce

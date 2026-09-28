@@ -43,6 +43,7 @@ if (result.isValid) {
 - **Auth0**: `x-auth0-signature` header
 - **WorkOS**: `workos-signature` header
 - **WooCommerce**: `x-wc-webhook-signature` header
+- **Webflow**: `x-webflow-signature` + `x-webflow-timestamp` headers (signed `timestamp:body`; API/OAuth-created webhooks only)
 - **ReplicateAI**: `webhook-signature` header
 - **fal.ai**: `x-fal-webhook-signature` header (ED25519)
 

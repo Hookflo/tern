@@ -375,6 +375,22 @@ export const platformAlgorithmConfigs: Record<
     description:
       "Linear webhooks use HMAC-SHA256 on the raw body with a 60s timestamp replay window",
   },
+  webflow: {
+    platform: "webflow",
+    signatureConfig: {
+      algorithm: "hmac-sha256",
+      headerName: "x-webflow-signature",
+      headerFormat: "raw",
+      timestampHeader: "x-webflow-timestamp",
+      timestampFormat: "unix",
+      payloadFormat: "custom",
+      customConfig: {
+        payloadFormat: "{timestamp}:{body}",
+      },
+    },
+    description:
+      "Webflow webhooks use HMAC-SHA256 (hex) over {timestamp}:{body} with a millisecond x-webflow-timestamp. Only API/OAuth-created webhooks are signed.",
+  },
   svix: {
     platform: "svix",
     signatureConfig: {

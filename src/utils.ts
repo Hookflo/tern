@@ -146,6 +146,11 @@ export function detectPlatformFromHeaders(headers: Headers): WebhookPlatform | n
     return 'shopify';
   }
 
+  // Webflow
+  if (headerMap.has('x-webflow-signature')) {
+    return 'webflow';
+  }
+
   // Vercel
   if (headerMap.has('x-vercel-signature')) {
     return 'vercel';
