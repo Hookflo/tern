@@ -1,0 +1,19 @@
+{
+  "name": "tern-example-hono",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@hookflo/tern": "../../",
+    "@hono/node-server": "^1.13.7",
+    "hono": "^4.7.10"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.3"
+  }
+}
